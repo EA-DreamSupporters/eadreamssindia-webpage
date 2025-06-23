@@ -1,8 +1,8 @@
 <?php
 $servername = "localhost";
 $database = "u978061437_eadreams";
-$username = "u978061437_EAdreams_admin";
-$password = "EAdreams@1234";
+$username = "root";
+$password = "";
 //$servername = "localhost";
 //$database = "eadreamss";
 //$username = "root";
