@@ -1,0 +1,12 @@
+echo "# eadreamssindia-webpage" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/EA-DreamSupporters/eadreamssindia-webpage.git
+git push -u origin main
+
+Existing CMDS
+git remote add origin https://github.com/EA-DreamSupporters/eadreamssindia-webpage.git
+git branch -M main
+git push -u origin main

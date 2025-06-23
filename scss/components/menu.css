@@ -1,0 +1,423 @@
+.govprep-link:focus svg [fill]:not([fill=none]),
+.govprep-link:active svg [fill]:not([fill=none]) {
+  fill: #5a6df5;
+}
+
+.govprep-link:focus svg [stroke]:not([stroke=none]),
+.govprep-link:active svg [stroke]:not([stroke=none]) {
+  stroke: #5a6df5;
+}
+
+html,
+body {
+  height: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+body {
+  background: #f5f5f9 !important;
+  min-height: 100vh;
+  /* Prevent scrollbars on empty pages */
+  overflow-y: auto;
+}
+
+/* Remove margin collapse for first child */
+body > *:first-child {
+  margin-top: 0 !important;
+}
+
+.sidebar-hover-zone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 100vh;
+  z-index: 1101;
+  /* background: rgba(0,0,255,0.05); For debug only */
+}
+
+.sidebar {
+  width: 80px;
+  background: #fff;
+  height: 100vh;
+  min-height: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, #fff 99%, #fff 100%);
+  position: fixed;
+  top: 0;
+  left: 0;
+  border-right: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 10px;
+  padding-top: 56px;
+  /* 56px top padding always, 16px bottom, 10px sides */
+  transition: width 0.3s, padding 0.3s;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 1102;
+  scrollbar-width: thin;
+  scrollbar-color: #e0e0e0 #fff;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 8px;
+  background: #fff;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: #e0e0e0;
+  border-radius: 4px;
+}
+
+.sidebar.hovering,
+.sidebar.locked {
+  width: 230px;
+  padding: 16px 30px;
+  padding-top: 56px;
+  /* keep top padding same as collapsed */
+}
+
+.sidebar-header-row {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  margin-top: 0;
+  position: relative;
+  z-index: 1103;
+}
+
+.sidebar-logo-link {
+  width: 100%;
+  min-height: 48px;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  position: relative;
+  z-index: 1103;
+  margin-top: 0;
+  margin-bottom: 24px;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.sidebar-logo-collapsed {
+  height: 55px;
+  max-width: 55px;
+  display: block;
+  transition: opacity 0.3s;
+}
+
+.sidebar-logo-expanded {
+  height: 46px;
+  max-width: 160px;
+  display: none;
+  transition: opacity 0.3s;
+  margin-left: 0;
+}
+
+.sidebar.hovering .sidebar-logo-collapsed {
+  display: none !important;
+}
+
+.sidebar.hovering .sidebar-logo-expanded {
+  display: block !important;
+}
+
+.sidebar.locked .sidebar-logo-collapsed {
+  display: none !important;
+}
+
+.sidebar.locked .sidebar-logo-expanded {
+  display: block !important;
+}
+
+.sidebar-lock-btn {
+  position: fixed;
+  top: 60px;
+  left: 80px;
+  /* Center at collapsed edge */
+  z-index: 1200;
+  background: none;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: left 0.3s, opacity 0.3s, transform 0.3s;
+  transform: translateX(-50%);
+}
+
+.sidebar.hovering .sidebar-lock-btn,
+.sidebar.locked .sidebar-lock-btn {
+  left: 230px;
+  /* Center at expanded edge */
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar-lock-btn .outer-circle {
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.sidebar-lock-btn .inner-circle {
+  width: 24px;
+  height: 24px;
+  background: #5a6df5;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-lock-btn:active .outer-circle {
+  background: #f0f4ff;
+}
+
+.sidebar,
+.nav-link,
+.sidebar-logo-link,
+.separator span {
+  font-family: "Outfit", Arial, sans-serif !important;
+}
+
+.nav-link {
+  font-size: 20px;
+  color: #666;
+  margin: 10px 0;
+  padding: 6px 18px;
+  text-align: left;
+  justify-content: flex-start !important;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar .nav-link span {
+  display: inline-block;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  vertical-align: middle;
+  white-space: nowrap;
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-left: 0;
+}
+
+.sidebar.hovering .nav-link span,
+.sidebar.locked .nav-link span {
+  max-width: 200px;
+  opacity: 1;
+  margin-left: 12px;
+}
+
+.sidebar .nav-link:hover {
+  background-color: #f0f4ff;
+  box-shadow: 0 1px 4px rgba(90, 109, 245, 0.14);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar .nav-link.active {
+  color: #384551;
+}
+
+.sidebar .nav-link iconify-icon,
+.sidebar .nav-link svg {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+.nav-link iconify-icon {
+  vertical-align: middle;
+  margin-bottom: 2px;
+  display: inline-block;
+}
+
+.nav-link span {
+  vertical-align: middle;
+  margin-bottom: 0px;
+  display: inline-block;
+}
+
+.separator {
+  margin: 18px 0 10px 0;
+}
+
+.sidebar .separator {
+  width: 100%;
+  padding: 8px 0 4px 0;
+  text-align: center;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar .separator hr {
+  flex: 0 0 16px;
+  width: 16px;
+  min-width: 16px;
+  max-width: 16px;
+  border: none;
+  border-top: 1px solid #b0b0b0;
+  margin: 0 8px;
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), flex 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar.hovering .separator hr,
+.sidebar.locked .separator hr {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sidebar .separator .sep-hr-left,
+.sidebar .separator .sep-hr-right {
+  height: 3px;
+  border-top: 3px solid #b0b0b0;
+  border-radius: 2px;
+  background: #b0b0b0;
+  /* Remove default border for hr */
+  border: none;
+  margin: 0 8px;
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s;
+}
+
+.sidebar .separator .sep-hr-left {
+  display: none;
+}
+
+.sidebar .separator .sep-hr-right {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.sidebar.hovering .separator .sep-hr-left,
+.sidebar.locked .separator .sep-hr-left {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 8px;
+}
+
+.sidebar.hovering .separator .sep-hr-right,
+.sidebar.locked .separator .sep-hr-right {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 8px;
+}
+
+.sidebar .separator span {
+  color: #b0b0b0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: opacity 0.3s, max-width 0.3s, margin 0.3s;
+  opacity: 0;
+  max-width: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.sidebar.hovering .separator span,
+.sidebar.locked .separator span {
+  opacity: 1;
+  max-width: 120px;
+  margin: 0 8px;
+}
+
+.govprep-link .govprep-svg {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px;
+  min-height: 28px;
+  max-width: 28px;
+  max-height: 28px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-bottom: 2px;
+}
+
+.govprep-link span {
+  vertical-align: middle;
+  margin-bottom: 0px;
+  display: inline-block;
+}
+
+.govprep-svg {
+  display: inline-block;
+  vertical-align: middle;
+  margin-bottom: -2px;
+}
+
+/* Highlight nav-link text and icon when selected (active page) */
+.nav-link.active,
+.nav-link:active,
+.nav-link:focus {
+  color: #5a6df5 !important;
+}
+
+.nav-link.active iconify-icon,
+.nav-link:active iconify-icon,
+.nav-link:focus iconify-icon {
+  color: #5a6df5 !important;
+  fill: #5a6df5 !important;
+}/*# sourceMappingURL=menu.css.map */
+
+body.dark-mode {
+  background: #23272f !important;
+  color: #f5f5f9 !important;
+  transition: background 0.3s, color 0.3s;
+}
+
+body.dark-mode .dash-search-bar {
+  background: #2d323c !important;
+  box-shadow: 0 2px 8px #0004;
+}
+
+body.dark-mode .search-input {
+  color: #f5f5f9 !important;
+}
+
+body.dark-mode .icon-btn {
+  color: #f5f5f9;
+}
+
+body.dark-mode .profile-avatar {
+  border-color: #444;
+}
