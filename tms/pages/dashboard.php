@@ -1,6 +1,5 @@
 <?php
 $user = getCurrentUser();
-$institute_id = isset($user['institute_id']) ? $user['institute_id'] : null;
 
 // Fetch dashboard statistics
 $stats = [
@@ -13,17 +12,17 @@ $stats = [
 try {
     // Get total tests
     $stmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE institute_id = ? OR ? = 'super_admin'");
-    $stmt->execute([$institute_id, $user['role']]);
+    $stmt->execute([$user['institute_id'], $user['role']]);
     $stats['total_tests'] = $stmt->fetchColumn();
     
     // Get active students
     $stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE role = 'student' AND (institute_id = ? OR ? = 'super_admin')");
-    $stmt->execute([$institute_id, $user['role']]);
+    $stmt->execute([$user['institute_id'], $user['role']]);
     $stats['active_students'] = $stmt->fetchColumn();
     
     // Get total questions
     $stmt = $db->prepare("SELECT COUNT(*) FROM question_banks WHERE institute_id = ? OR ? = 'super_admin'");
-    $stmt->execute([$institute_id, $user['role']]);
+    $stmt->execute([$user['institute_id'], $user['role']]);
     $stats['total_questions'] = $stmt->fetchColumn();
     
     // Calculate monthly revenue (mock data)
@@ -76,7 +75,7 @@ $recent_activities = [
             </div>
         </div>
     </div>
-
+    
     <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12">
         <div class="stats-card success">
             <div class="d-flex justify-content-between align-items-center">
@@ -90,7 +89,7 @@ $recent_activities = [
             </div>
         </div>
     </div>
-
+    
     <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12">
         <div class="stats-card warning">
             <div class="d-flex justify-content-between align-items-center">
@@ -104,7 +103,7 @@ $recent_activities = [
             </div>
         </div>
     </div>
-
+    
     <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12">
         <div class="stats-card danger">
             <div class="d-flex justify-content-between align-items-center">
@@ -142,7 +141,7 @@ $recent_activities = [
                             </div>
                         </a>
                     </div>
-
+                    
                     <div class="col-md-4">
                         <a href="index.php?page=questions&action=instant" class="text-decoration-none">
                             <div class="quick-action-card">
@@ -154,7 +153,7 @@ $recent_activities = [
                             </div>
                         </a>
                     </div>
-
+                    
                     <div class="col-md-4">
                         <a href="index.php?page=questions&action=upload" class="text-decoration-none">
                             <div class="quick-action-card">
@@ -166,7 +165,7 @@ $recent_activities = [
                             </div>
                         </a>
                     </div>
-
+                    
                     <div class="col-md-4">
                         <a href="index.php?page=analytics" class="text-decoration-none">
                             <div class="quick-action-card">
@@ -178,7 +177,7 @@ $recent_activities = [
                             </div>
                         </a>
                     </div>
-
+                    
                     <div class="col-md-4">
                         <a href="index.php?page=students&action=manage" class="text-decoration-none">
                             <div class="quick-action-card">
@@ -190,7 +189,7 @@ $recent_activities = [
                             </div>
                         </a>
                     </div>
-
+                    
                     <div class="col-md-4">
                         <a href="index.php?page=tests&action=proctor" class="text-decoration-none">
                             <div class="quick-action-card">
@@ -206,7 +205,7 @@ $recent_activities = [
             </div>
         </div>
     </div>
-
+    
     <!-- Recent Activity -->
     <div class="col-lg-4 col-md-12 mb-4">
         <div class="card">
@@ -229,7 +228,7 @@ $recent_activities = [
                     </div>
                     <?php endforeach; ?>
                 </div>
-
+                
                 <div class="text-center mt-3">
                     <button class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-eye me-1"></i>View All Activity
@@ -256,7 +255,7 @@ $recent_activities = [
             </div>
         </div>
     </div>
-
+    
     <div class="col-lg-6 mb-4">
         <div class="card">
             <div class="card-header">

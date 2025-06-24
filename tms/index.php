@@ -17,7 +17,9 @@ if ($page !== 'login' && !isLoggedIn()) {
     exit();
 }
 
-include 'includes/header.php';
+if ($page !== 'login') {
+    include 'includes/header.php';
+}
 
 switch($page) {
     case 'login':
