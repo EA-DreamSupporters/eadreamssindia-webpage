@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $is_active = isset($_POST['is_active']) ? 1 : 0;
             
             if ($action === 'create') {
-                $stmt = $db->prepare("INSERT INTO test_packs (title, description, price, mrp, test_type, timer_type, duration_minutes, institute_id, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$title, $description, $price, $mrp, $test_type, $timer_type, $duration, $user['institute_id'], $is_active]);
+                $stmt = $db->prepare("INSERT INTO test_packs (title, description, price, mrp, test_type, timer_type, duration_minutes, institute_id, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$title, $description, $price, $mrp, $test_type, $timer_type, $duration, $user['institute_id'], $is_active, $created_at]);
                 $success = "Test pack created successfully!";
             }
             
@@ -28,14 +28,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Fetch test packs
+
 $tests = [];
-try {
-    $stmt = $db->prepare("SELECT * FROM test_packs WHERE institute_id = ? OR ? = 'super_admin' ORDER BY created_at DESC");
-    $stmt->execute([$user['institute_id'], $user['role']]);
-    $tests = $stmt->fetchAll();
-} catch (Exception $e) {
-    error_log("Tests fetch error: " . $e->getMessage());
+if ($user['role'] === 'admin') {
+    // Admin can see all test packs
+    $stmt = $db->query("SELECT * FROM test_packs ORDER BY id DESC");
+    $tests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} elseif ($user['role'] === 'vendor') {
+    // Vendor sees only their own institute's test packs
+    $stmt = $db->prepare("SELECT * FROM test_packs WHERE institute_id = ? ORDER BY id DESC");
+    $stmt->execute([$user['institute_id']]);
+    $tests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    // Students see only active test packs
+    $stmt = $db->prepare("SELECT * FROM test_packs WHERE is_active = 1 ORDER BY id DESC");
+    $stmt->execute();
+    $tests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
+
+
 ?>
 
 <div class="row">
@@ -46,7 +57,8 @@ try {
                 <p class="text-muted">Create and manage test packs, mock tests, and proctored exams</p>
             </div>
             <div>
-                <button class="btn btn-success me-2" onclick="window.location.href='index.php?page=tests&action=instant'">
+                <button class="btn btn-success me-2"
+                    onclick="window.location.href='index.php?page=tests&action=instant'">
                     <i class="fas fa-lightning-bolt me-2"></i>Instant Test Builder
                 </button>
                 <button class="btn btn-primary" onclick="window.location.href='index.php?page=tests&action=create'">
@@ -84,7 +96,7 @@ try {
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
@@ -95,7 +107,7 @@ try {
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
@@ -106,7 +118,7 @@ try {
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
@@ -152,12 +164,14 @@ try {
                             <div>
                                 <strong><?= htmlspecialchars($test['title']) ?></strong>
                                 <?php if ($test['description']): ?>
-                                <br><small class="text-muted"><?= htmlspecialchars(substr($test['description'], 0, 50)) ?>...</small>
+                                <br><small
+                                    class="text-muted"><?= htmlspecialchars(substr($test['description'], 0, 50)) ?>...</small>
                                 <?php endif; ?>
                             </div>
                         </td>
                         <td>
-                            <span class="badge bg-<?= $test['test_type'] === 'mock' ? 'primary' : ($test['test_type'] === 'real' ? 'danger' : 'warning') ?>">
+                            <span
+                                class="badge bg-<?= $test['test_type'] === 'mock' ? 'primary' : ($test['test_type'] === 'real' ? 'danger' : 'warning') ?>">
                                 <?= ucfirst($test['test_type']) ?>
                             </span>
                         </td>
@@ -165,7 +179,8 @@ try {
                         <td>
                             ₹<?= number_format($test['price']) ?>
                             <?php if ($test['mrp'] > $test['price']): ?>
-                            <br><small class="text-muted text-decoration-line-through">₹<?= number_format($test['mrp']) ?></small>
+                            <br><small
+                                class="text-muted text-decoration-line-through">₹<?= number_format($test['mrp']) ?></small>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -192,14 +207,15 @@ try {
                         </td>
                     </tr>
                     <?php endforeach; ?>
-                    
+
                     <?php if (empty($tests)): ?>
                     <tr>
                         <td colspan="7" class="text-center py-5">
                             <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
                             <h5 class="text-muted">No tests found</h5>
                             <p class="text-muted">Create your first test pack to get started.</p>
-                            <button class="btn btn-primary" onclick="window.location.href='index.php?page=tests&action=create'">
+                            <button class="btn btn-primary"
+                                onclick="window.location.href='index.php?page=tests&action=create'">
                                 <i class="fas fa-plus me-2"></i>Create Test Pack
                             </button>
                         </td>
@@ -242,12 +258,12 @@ try {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
                         <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                     </div>
-                    
+
                     <div class="row">
                         <div class="col-md-4">
                             <div class="mb-3">
@@ -264,11 +280,12 @@ try {
                         <div class="col-md-4">
                             <div class="mb-3">
                                 <label for="duration_minutes" class="form-label">Duration (Minutes)</label>
-                                <input type="number" class="form-control" id="duration_minutes" name="duration_minutes" value="60" min="1">
+                                <input type="number" class="form-control" id="duration_minutes" name="duration_minutes"
+                                    value="60" min="1">
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -282,7 +299,8 @@ try {
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <div class="form-check form-switch mt-4">
-                                    <input class="form-check-input" type="checkbox" id="is_active" name="is_active" checked>
+                                    <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
+                                        checked>
                                     <label class="form-check-label" for="is_active">
                                         Active (Visible to students)
                                     </label>
@@ -290,11 +308,12 @@ try {
                             </div>
                         </div>
                     </div>
-                    
+
                     <hr>
-                    
+
                     <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary" onclick="window.location.href='index.php?page=tests'">
+                        <button type="button" class="btn btn-secondary"
+                            onclick="window.location.href='index.php?page=tests'">
                             <i class="fas fa-arrow-left me-2"></i>Back to Tests
                         </button>
                         <div>
@@ -321,11 +340,11 @@ try {
                 <i class="fas fa-lightning-bolt text-warning me-2"></i>
                 Instant Test Builder
             </h3>
-            
+
             <!-- Question Selection Panel -->
             <div class="question-selector mb-4">
                 <h5>Select Questions</h5>
-                
+
                 <div class="row">
                     <div class="col-md-4">
                         <select class="form-select mb-3">
@@ -353,12 +372,12 @@ try {
                         </select>
                     </div>
                 </div>
-                
+
                 <button class="btn btn-primary">
                     <i class="fas fa-search me-2"></i>Search Questions
                 </button>
             </div>
-            
+
             <!-- Selected Questions Area -->
             <div class="selected-questions" id="selected-questions">
                 <i class="fas fa-plus-circle fa-3x text-muted mb-3"></i>
@@ -367,7 +386,7 @@ try {
             </div>
         </div>
     </div>
-    
+
     <div class="col-lg-4">
         <div class="card sticky-top">
             <div class="card-header">
@@ -379,12 +398,12 @@ try {
                         <label class="form-label">Test Title</label>
                         <input type="text" class="form-control" placeholder="Enter test title">
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">Duration (Minutes)</label>
                         <input type="number" class="form-control" value="60">
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">Timer Type</label>
                         <select class="form-select">
@@ -392,21 +411,21 @@ try {
                             <option>Per Question Timer</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="randomize">
                         <label class="form-check-label" for="randomize">
                             Randomize Questions
                         </label>
                     </div>
-                    
+
                     <div class="form-check mb-4">
                         <input class="form-check-input" type="checkbox" id="show_results">
                         <label class="form-check-label" for="show_results">
                             Show Results Immediately
                         </label>
                     </div>
-                    
+
                     <div class="d-grid gap-2">
                         <button type="button" class="btn btn-success">
                             <i class="fas fa-rocket me-2"></i>Generate Test Link
