@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 24, 2025 at 04:37 PM
+-- Generation Time: Jun 25, 2025 at 03:52 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -94,7 +94,7 @@ CREATE TABLE `test_packs` (
   `duration_minutes` int(11) DEFAULT 60,
   `institute_id` int(11) DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -102,8 +102,8 @@ CREATE TABLE `test_packs` (
 --
 
 INSERT INTO `test_packs` (`id`, `title`, `description`, `cover_image`, `price`, `mrp`, `test_type`, `timer_type`, `duration_minutes`, `institute_id`, `is_active`, `created_at`) VALUES
-(1, 'UPSC Mock Dhamaka', '', NULL, 1200.00, 1500.00, 'mock', 'full_test', 60, NULL, 1, '2025-06-23 13:39:13'),
-(2, 'UPSC Damaka', '', NULL, 1200.00, 1500.00, 'real', 'full_test', 60, NULL, 1, '2025-06-23 13:42:51');
+(1, 'UPSC Mock Dhamaka', '', NULL, 1200.00, 1500.00, 'mock', 'full_test', 60, NULL, 1, '2025-06-23 19:09:13'),
+(2, 'UPSC Damaka', '', NULL, 1200.00, 1500.00, 'real', 'full_test', 60, NULL, 1, '2025-06-23 19:12:51');
 
 -- --------------------------------------------------------
 
