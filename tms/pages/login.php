@@ -230,26 +230,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <small class="form-text">Already have an account? <a href="login.php"
                             class="text-link">Login</a></small>
                 </div>
+
+                <!-- ✅ Demo Credentials Section -->
+                <div class="card mt-4 shadow-sm">
+                    <div class="card-header bg-light">
+                        <strong>Demo Login Credentials (For Testing)</strong>
+                    </div>
+                    <div class="card-body small">
+                        <ul class="mb-0">
+                            <li><strong>Super Admin:</strong> <code>superadmin / super123</code></li>
+                            <li><strong>Admin:</strong> <code>adminuser / admin123</code></li>
+                            <li><strong>Vendor:</strong> <code>vendor01 / vendor123</code></li>
+                            <li><strong>Student:</strong> <code>student01 / student123</code></li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-    // Bootstrap validation
-    (() => {
-        'use strict';
-        const forms = document.querySelectorAll('.needs-validation');
-        Array.from(forms).forEach(form => {
-            form.addEventListener('submit', event => {
-                if (!form.checkValidity()) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
-                form.classList.add('was-validated');
-            }, false);
-        });
-    })();
-    </script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+        // Bootstrap validation
+        (() => {
+            'use strict';
+            const forms = document.querySelectorAll('.needs-validation');
+            Array.from(forms).forEach(form => {
+                form.addEventListener('submit', event => {
+                    if (!form.checkValidity()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        })();
+        </script>
 </body>
 
 </html>
