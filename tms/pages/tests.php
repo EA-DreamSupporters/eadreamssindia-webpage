@@ -5,42 +5,60 @@ $perPage = 10;
 $pageNum = intval($_GET['page_num'] ?? 1);
 $offset = ($pageNum - 1) * $perPage;
 
-// ✅ Role Flags
 $isSuperAdmin = ($user['role'] === 'super_admin');
 $isAdminOrSuperAdmin = in_array($user['role'], ['admin', 'super_admin']);
 
-// ===================== 1. Pagination - Test Listing Based on Role =====================
 $tests = [];
 $totalRows = 0;
 
+// ===================== 1. Role-wise Test Listing =====================
 if ($isAdminOrSuperAdmin) {
+    if ($isAdminOrSuperAdmin) {
+    // ✅ Total Rows
     $totalRows = $db->query("SELECT COUNT(*) FROM test_packs")->fetchColumn();
-    $stmt = $db->prepare("SELECT * FROM test_packs ORDER BY id DESC LIMIT ? OFFSET ?");
-    $stmt->bindValue(1, $perPage, PDO::PARAM_INT);
-    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
-    $stmt->execute();
-    $tests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // ✅ Fetch with institute name join
+    $stmt = $db->prepare("
+    SELECT tp.*, i.name AS institute_name
+    FROM test_packs tp
+    LEFT JOIN institutions i ON i.id = tp.institute_id
+    ORDER BY tp.id DESC
+    LIMIT ? OFFSET ?
+");
+$stmt->bindValue(1, $perPage, PDO::PARAM_INT);
+$stmt->bindValue(2, $offset, PDO::PARAM_INT);
+$stmt->execute();
+$tests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+}
+
 } elseif ($user['role'] === 'vendor') {
+    // Vendor - Only their Institute Tests
     $totalStmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE institute_id = ?");
-    $totalStmt->execute([$user['id']]);
+    $totalStmt->execute([$user['institute_id']]);
     $totalRows = $totalStmt->fetchColumn();
 
     $stmt = $db->prepare("SELECT * FROM test_packs WHERE institute_id = ? ORDER BY id DESC LIMIT ? OFFSET ?");
-    $stmt->bindValue(1, $user['id'], PDO::PARAM_INT);
+    $stmt->bindValue(1, $user['institute_id'], PDO::PARAM_INT);
     $stmt->bindValue(2, $perPage, PDO::PARAM_INT);
     $stmt->bindValue(3, $offset, PDO::PARAM_INT);
     $stmt->execute();
     $tests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } else {
-    $totalRows = $db->query("SELECT COUNT(*) FROM test_packs WHERE is_active = 1")->fetchColumn();
-    $stmt = $db->prepare("SELECT * FROM test_packs WHERE is_active = 1 ORDER BY id DESC LIMIT ? OFFSET ?");
-    $stmt->bindValue(1, $perPage, PDO::PARAM_INT);
-    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+    // Student - Only Active + Visible + Own Institute or Global (institute_id = 0)
+    $totalStmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE is_active = 1 AND is_visible_to_students = 1 AND (institute_id = ? OR institute_id = 0)");
+    $totalStmt->execute([$user['institute_id']]);
+    $totalRows = $totalStmt->fetchColumn();
+
+    $stmt = $db->prepare("SELECT * FROM test_packs WHERE is_active = 1 AND is_visible_to_students = 1 AND (institute_id = ? OR institute_id = 0) ORDER BY id DESC LIMIT ? OFFSET ?");
+    $stmt->bindValue(1, $user['institute_id'], PDO::PARAM_INT);
+    $stmt->bindValue(2, $perPage, PDO::PARAM_INT);
+    $stmt->bindValue(3, $offset, PDO::PARAM_INT);
     $stmt->execute();
     $tests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// ===================== 2. Handle Create / Edit Form Submission =====================
+// ===================== 2. Create / Edit Test Pack =====================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $title = $_POST['title'] ?? '';
@@ -51,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $timer_type = $_POST['timer_type'] ?? 'full_test';
         $duration = intval($_POST['duration_minutes'] ?? 60);
         $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $is_visible_to_students = isset($_POST['is_visible_to_students']) ? 1 : 0;
         $cover_image_path = null;
 
         // ✅ Handle Cover Image Upload
@@ -65,42 +84,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // ✅ Create Test Pack
+        // ✅ Create Test
         if ($action === 'create') {
             $created_at = date('Y-m-d H:i:s');
-            $stmt = $db->prepare("INSERT INTO test_packs (title, description, price, mrp, test_type, timer_type, duration_minutes, institute_id, is_active, created_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $instituteId = ($user['role'] === 'vendor') ? $user['institute_id'] : 0;
+
+            $stmt = $db->prepare("INSERT INTO test_packs (title, description, price, mrp, test_type, timer_type, duration_minutes, institute_id, is_active, is_visible_to_students, created_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
-                $title, $description, $price, $mrp, $test_type, $timer_type, $duration, $user['id'], $is_active, $created_at, $cover_image_path
+                $title, $description, $price, $mrp, $test_type, $timer_type, $duration, $instituteId, $is_active, $is_visible_to_students, $created_at, $cover_image_path
             ]);
+
             $success = "Test pack created successfully!";
             $action = 'list';
         }
 
-        // ✅ Edit Test Pack
+        // ✅ Edit Test
         if ($action === 'edit') {
             $test_id = intval($_GET['id'] ?? 0);
             if ($test_id > 0) {
-                // Role-based fetch for security
                 if ($isAdminOrSuperAdmin) {
                     $stmt = $db->prepare("SELECT * FROM test_packs WHERE id = ?");
                     $stmt->execute([$test_id]);
                 } else {
                     $stmt = $db->prepare("SELECT * FROM test_packs WHERE id = ? AND institute_id = ?");
-                    $stmt->execute([$test_id, $user['id']]);
+                    $stmt->execute([$test_id, $user['institute_id']]);
                 }
 
                 $existingTest = $stmt->fetch(PDO::FETCH_ASSOC);
-
                 if ($existingTest) {
-                    if (!$cover_image_path) {
-                        $cover_image_path = $existingTest['cover_image'];
-                    } else {
+                    if (!$cover_image_path) $cover_image_path = $existingTest['cover_image'];
+                    else {
                         if (!empty($existingTest['cover_image']) && file_exists($existingTest['cover_image'])) unlink($existingTest['cover_image']);
                     }
 
-                    $stmt = $db->prepare("UPDATE test_packs SET title = ?, description = ?, price = ?, mrp = ?, test_type = ?, timer_type = ?, duration_minutes = ?, is_active = ?, cover_image = ? WHERE id = ?");
+                    $stmt = $db->prepare("UPDATE test_packs SET title=?, description=?, price=?, mrp=?, test_type=?, timer_type=?, duration_minutes=?, is_active=?, is_visible_to_students=?, cover_image=? WHERE id=?");
                     $stmt->execute([
-                        $title, $description, $price, $mrp, $test_type, $timer_type, $duration, $is_active, $cover_image_path, $test_id
+                        $title, $description, $price, $mrp, $test_type, $timer_type, $duration, $is_active, $is_visible_to_students, $cover_image_path, $test_id
                     ]);
 
                     $success = "Test pack updated successfully!";
@@ -111,24 +130,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+
     } catch (Exception $e) {
         $error = "Error: " . $e->getMessage();
     }
 }
 
-// ===================== 3. Fetch Test for Edit Prefill =====================
+// ===================== 3. Fetch for Edit Prefill =====================
 $editTest = null;
 if ($action === 'edit' && isset($_GET['id'])) {
     $test_id = intval($_GET['id']);
-
     if ($isAdminOrSuperAdmin) {
         $stmt = $db->prepare("SELECT * FROM test_packs WHERE id = ?");
         $stmt->execute([$test_id]);
     } else {
         $stmt = $db->prepare("SELECT * FROM test_packs WHERE id = ? AND institute_id = ?");
-        $stmt->execute([$test_id, $user['id']]);
+        $stmt->execute([$test_id, $user['institute_id']]);
     }
-
     $editTest = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$editTest) {
         $error = "Test pack not found.";
@@ -145,7 +163,7 @@ if ($action === 'delete' && isset($_GET['id'])) {
         $stmt->execute([$test_id]);
     } else {
         $stmt = $db->prepare("SELECT * FROM test_packs WHERE id = ? AND institute_id = ?");
-        $stmt->execute([$test_id, $user['id']]);
+        $stmt->execute([$test_id, $user['institute_id']]);
     }
 
     $testToDelete = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -157,7 +175,7 @@ if ($action === 'delete' && isset($_GET['id'])) {
             $stmt->execute([$test_id]);
         } else {
             $stmt = $db->prepare("DELETE FROM test_packs WHERE id = ? AND institute_id = ?");
-            $stmt->execute([$test_id, $user['id']]);
+            $stmt->execute([$test_id, $user['institute_id']]);
         }
 
         $success = "Test pack deleted successfully!";
@@ -168,6 +186,7 @@ if ($action === 'delete' && isset($_GET['id'])) {
     }
 }
 ?>
+
 
 
 <div class="row">
@@ -272,6 +291,7 @@ if ($action === 'delete' && isset($_GET['id'])) {
                     <tr>
                         <th>Cover</th>
                         <th>Test Name</th>
+                        <th>Created By</th>
                         <th>Type</th>
                         <th>Duration</th>
                         <th>Price</th>
@@ -299,6 +319,9 @@ if ($action === 'delete' && isset($_GET['id'])) {
                                     class="text-muted"><?= htmlspecialchars(substr($test['description'], 0, 50)) ?>...</small>
                                 <?php endif; ?>
                             </div>
+                        </td>
+                        <td>
+                            <?= htmlspecialchars($test['institute_name'] ?? 'EA Dream Supporters') ?>
                         </td>
                         <td>
                             <span
@@ -329,18 +352,28 @@ if ($action === 'delete' && isset($_GET['id'])) {
                                     onclick="window.location.href='index.php?page=tests&action=edit&id=<?= $test['id'] ?>'">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn btn-outline-success" title="View Details">
+                                <button class="btn btn-outline-success view-details-btn" title="View Details"
+                                    data-id="<?= $test['id'] ?>" data-title="<?= htmlspecialchars($test['title']) ?>"
+                                    data-description="<?= htmlspecialchars($test['description']) ?>"
+                                    data-price="<?= number_format($test['price']) ?>"
+                                    data-mrp="<?= number_format($test['mrp']) ?>"
+                                    data-type="<?= ucfirst($test['test_type']) ?>"
+                                    data-duration="<?= $test['duration_minutes'] ?>"
+                                    data-status="<?= $test['is_active'] ? 'Active' : 'Inactive' ?>"
+                                    data-cover_image="<?= htmlspecialchars($test['cover_image']) ?>">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <button class="btn btn-outline-info" title="Copy Link">
+                                <button class="btn btn-outline-info copy-link-btn" title="Copy Link"
+                                    data-id="<?= $test['id'] ?>">
                                     <i class="fas fa-link"></i>
                                 </button>
+
                                 <button class="btn btn-outline-danger" title="Delete"
                                     onclick="if(confirm('Are you sure you want to delete this test pack?')) { window.location.href='index.php?page=tests&action=delete&id=<?= $test['id'] ?>'; }">
                                     <i class="fas fa-trash"></i>
                                 </button>
-
                             </div>
+
 
                         </td>
                     </tr>
@@ -385,6 +418,23 @@ if ($totalPages > 1): ?>
     </ul>
 </nav>
 <?php endif; ?>
+
+<!-- Test Details Modal -->
+<div class="modal fade" id="testDetailsModal" tabindex="-1" aria-labelledby="testDetailsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="testDetailsLabel">Test Pack Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="testDetailsContent">
+                <!-- JS will dynamically fill content here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+
 
 
 <?php elseif ($action === 'create'): ?>
@@ -473,6 +523,18 @@ if ($totalPages > 1): ?>
                                 </div>
                             </div>
                         </div>
+                        <?php if ($user['role'] === 'admin' || $user['role'] === 'super_admin'): ?>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="is_visible_to_students"
+                                name="is_visible_to_students"
+                                <?= (isset($editTest) && $editTest['is_visible_to_students']) ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="is_visible_to_students">
+                                Visible to Students (Admin Control)
+                            </label>
+                        </div>
+                        <?php endif; ?>
+
+
                     </div>
 
                     <hr>
@@ -609,8 +671,22 @@ if ($totalPages > 1): ?>
                                         Active (Visible to students)
                                     </label>
                                 </div>
+
                             </div>
                         </div>
+                        <?php if ($user['role'] === 'admin' || $user['role'] === 'super_admin'): ?>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="is_visible_to_students"
+                                name="is_visible_to_students"
+                                <?= (isset($editTest) && $editTest['is_visible_to_students']) ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="is_visible_to_students">
+                                Visible to Students (Admin Control)
+                            </label>
+                        </div>
+                        <?php endif; ?>
+
+
+
                     </div>
 
                     <hr>
@@ -747,3 +823,48 @@ if ($totalPages > 1): ?>
 </div>
 
 <?php endif; ?>
+
+<script>
+document.querySelectorAll('.view-details-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        let image = this.getAttribute('data-cover_image');
+        let title = this.getAttribute('data-title');
+        let desc = this.getAttribute('data-description');
+        let price = this.getAttribute('data-price');
+        let mrp = this.getAttribute('data-mrp');
+        let type = this.getAttribute('data-type');
+        let duration = this.getAttribute('data-duration');
+        let status = this.getAttribute('data-status');
+
+        let html = `
+            ${image ? `<img src="${image}" alt="Cover Image" class="img-fluid mb-3" style="max-height: 300px; width: auto;">` : ''}
+            <h4>${title}</h4>
+            <p><strong>Type:</strong> ${type}</p>
+            <p><strong>Duration:</strong> ${duration} Minutes</p>
+            <p><strong>Price:</strong> ₹${price} ${mrp > price ? '<small class="text-muted ms-2 text-decoration-line-through">₹' + mrp + '</small>' : ''}</p>
+            <p><strong>Status:</strong> ${status}</p>
+            <hr>
+            <p>${desc}</p>
+        `;
+
+        document.getElementById('testDetailsContent').innerHTML = html;
+        let modal = new bootstrap.Modal(document.getElementById('testDetailsModal'));
+        modal.show();
+    });
+});
+</script>
+
+<script>
+document.querySelectorAll('.copy-link-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        const testId = this.getAttribute('data-id');
+        const url = window.location.origin + "/index.php?page=test_details&id=" + testId;
+
+        navigator.clipboard.writeText(url).then(function() {
+            alert('Link copied to clipboard:\n' + url);
+        }).catch(function(err) {
+            alert('Failed to copy link: ' + err);
+        });
+    });
+});
+</script>

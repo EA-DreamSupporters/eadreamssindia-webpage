@@ -28,14 +28,35 @@ function login($username, $password) {
     $stmt = $db->prepare("SELECT * FROM users WHERE username = ? OR email = ? LIMIT 1");
     $stmt->execute([$username, $username]);
     $user = $stmt->fetch();
-    if ($user && (isset($user['password']) && (password_verify($password, $user['password']) || $user['password'] === md5($password)))) {
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['user_role'] = $user['role'];
-        if (isset($user['institute_id'])) {
-            $_SESSION['institute_id'] = $user['institute_id'];
+
+    if ($user && isset($user['password'])) {
+        $dbPassword = $user['password'];
+
+        // ✅ Password check for bcrypt (password_hash)
+        if (password_verify($password, $dbPassword)) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_role'] = $user['role'];
+            if (isset($user['institute_id'])) $_SESSION['institute_id'] = $user['institute_id'];
+            return true;
         }
-        return true;
+
+        // ✅ Password check for MD5
+        if ($dbPassword === md5($password)) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_role'] = $user['role'];
+            if (isset($user['institute_id'])) $_SESSION['institute_id'] = $user['institute_id'];
+            return true;
+        }
+
+        // ✅ Password check for SHA256 (for your super admin case)
+        if ($dbPassword === hash('sha256', $password)) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_role'] = $user['role'];
+            if (isset($user['institute_id'])) $_SESSION['institute_id'] = $user['institute_id'];
+            return true;
+        }
     }
+
     return false;
 }
 

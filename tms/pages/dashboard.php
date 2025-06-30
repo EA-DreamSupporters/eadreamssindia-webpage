@@ -1,5 +1,13 @@
 <?php
-$user = getCurrentUser();
+if ($user['role'] === 'super_admin') {
+    $stmt = $db->query("SELECT COUNT(*) FROM test_packs");
+    $stats['total_tests'] = $stmt->fetchColumn();
+} else {
+    $stmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE institute_id = ?");
+    $stmt->execute([$user['institute_id']]);
+    $stats['total_tests'] = $stmt->fetchColumn();
+}
+
 
 // Fetch dashboard statistics
 $stats = [
@@ -10,27 +18,39 @@ $stats = [
 ];
 
 try {
-    // Get total tests
-    $stmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE institute_id = ? OR ? = 'super_admin'");
-    $stmt->execute([$user['institute_id'], $user['role']]);
-    $stats['total_tests'] = $stmt->fetchColumn();
-    
-    // Get active students
-    $stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE role = 'student' AND (institute_id = ? OR ? = 'super_admin')");
-    $stmt->execute([$user['institute_id'], $user['role']]);
-    $stats['active_students'] = $stmt->fetchColumn();
-    
-    // Get total questions
-    $stmt = $db->prepare("SELECT COUNT(*) FROM question_banks WHERE institute_id = ? OR ? = 'super_admin'");
-    $stmt->execute([$user['institute_id'], $user['role']]);
-    $stats['total_questions'] = $stmt->fetchColumn();
-    
-    // Calculate monthly revenue (mock data)
+    // Total Tests
+    if ($user['role'] === 'super_admin') {
+        $stats['total_tests'] = $db->query("SELECT COUNT(*) FROM test_packs")->fetchColumn();
+    } else {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE institute_id = ?");
+        $stmt->execute([$user['institute_id']]);
+        $stats['total_tests'] = $stmt->fetchColumn();
+    }
+
+    // Active Students
+    if ($user['role'] === 'super_admin') {
+        $stats['active_students'] = $db->query("SELECT COUNT(*) FROM users WHERE role = 'student'")->fetchColumn();
+    } else {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE role = 'student' AND institute_id = ?");
+        $stmt->execute([$user['institute_id']]);
+        $stats['active_students'] = $stmt->fetchColumn();
+    }
+
+    // Total Questions
+    if ($user['role'] === 'super_admin') {
+        $stats['total_questions'] = $db->query("SELECT COUNT(*) FROM question_banks")->fetchColumn();
+    } else {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM question_banks WHERE institute_id = ?");
+        $stmt->execute([$user['institute_id']]);
+        $stats['total_questions'] = $stmt->fetchColumn();
+    }
+
+    // Mock Revenue
     $stats['monthly_revenue'] = rand(5000, 25000);
-    
 } catch (Exception $e) {
     error_log("Dashboard stats error: " . $e->getMessage());
 }
+
 
 // Recent activities
 $recent_activities = [

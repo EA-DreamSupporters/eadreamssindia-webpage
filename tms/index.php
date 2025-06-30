@@ -5,7 +5,7 @@ require_once 'includes/auth.php';
 
 // Simple routing
 $page = $_GET['page'] ?? 'dashboard';
-$allowed_pages = ['dashboard', 'tests', 'questions', 'analytics', 'vendors', 'students', 'settings', 'login'];
+$allowed_pages = ['dashboard', 'tests', 'test_details', 'questions', 'analytics', 'vendors', 'students', 'settings', 'login'];
 
 if (!in_array($page, $allowed_pages)) {
     $page = 'dashboard';
@@ -30,6 +30,9 @@ switch($page) {
         break;
     case 'tests':
         include 'pages/tests.php';
+        break;
+    case 'test_details':
+        include 'pages/test_details.php';
         break;
     case 'questions':
         include 'pages/questions.php';
