@@ -122,6 +122,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'edit' && isset($_GET['
 // Fetch subjects and topics for filters
 $allSubjects = $db->query("SELECT DISTINCT subject FROM question_banks WHERE subject IS NOT NULL AND subject != ''")->fetchAll(PDO::FETCH_COLUMN);
 $allTopics = $db->query("SELECT DISTINCT topic FROM question_banks WHERE topic IS NOT NULL AND topic != ''")->fetchAll(PDO::FETCH_COLUMN);
+$allSources = $db->query("SELECT DISTINCT source FROM question_banks WHERE source IS NOT NULL AND source != ''")->fetchAll(PDO::FETCH_COLUMN);
+
 
 // Fetch questions for list
 if ($user['role'] === 'super_admin') {
@@ -222,7 +224,21 @@ if ($user['role'] === 'super_admin') {
         <form method="GET" action="index.php">
             <input type="hidden" name="page" value="questions">
             <div class="row align-items-end">
-                <div class="col-md-3">
+
+                <div class="col-md-2">
+                    <label class="form-label">Exam (Source)</label>
+                    <select class="form-select" name="source">
+                        <option value="">All Exams</option>
+                        <?php foreach ($allSources as $source): ?>
+                        <option value="<?= htmlspecialchars($source) ?>"
+                            <?= ($_GET['source'] ?? '') == $source ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($source) ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
                     <label class="form-label">Subject</label>
                     <select class="form-select" name="subject">
                         <option value="">All Subjects</option>
@@ -234,7 +250,8 @@ if ($user['role'] === 'super_admin') {
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-3">
+
+                <div class="col-md-2">
                     <label class="form-label">Topic</label>
                     <select class="form-select" name="topic">
                         <option value="">All Topics</option>
@@ -246,6 +263,8 @@ if ($user['role'] === 'super_admin') {
                         <?php endforeach; ?>
                     </select>
                 </div>
+
+
                 <div class="col-md-2">
                     <label class="form-label">Difficulty</label>
                     <select class="form-select" name="difficulty">
@@ -258,11 +277,13 @@ if ($user['role'] === 'super_admin') {
                         </option>
                     </select>
                 </div>
+
                 <div class="col-md-3">
-                    <label class="form-label">Search</label>
+                    <label class="form-label">Search Text</label>
                     <input type="text" class="form-control" name="search_text"
                         value="<?= htmlspecialchars($_GET['search_text'] ?? '') ?>" placeholder="Search questions...">
                 </div>
+
                 <div class="col-md-1">
                     <button class="btn btn-primary w-100" type="submit">
                         <i class="fas fa-search"></i>
@@ -272,6 +293,7 @@ if ($user['role'] === 'super_admin') {
         </form>
     </div>
 </div>
+
 
 
 <!-- Questions List -->
