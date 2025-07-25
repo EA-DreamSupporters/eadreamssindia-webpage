@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 30, 2025 at 11:43 AM
+-- Generation Time: Jul 25, 2025 at 10:18 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -120,7 +120,20 @@ CREATE TABLE `test_packs` (
 INSERT INTO `test_packs` (`id`, `title`, `description`, `cover_image`, `price`, `mrp`, `test_type`, `timer_type`, `duration_minutes`, `institute_id`, `is_active`, `created_at`, `is_visible_to_students`) VALUES
 (11, 'UPSC DAMAKA', 'Heloow FAM', 'assets/images/1750949589_Slide 16_9 - 4.jpg', 1202.00, 3210.00, 'mock', 'full_test', 60, NULL, 1, '2025-06-26 16:53:09', 1),
 (29, 'TNPSC', '', 'assets/images/1751264581_f58a7789f8.jpg', 1999.00, 3000.00, 'mock', 'full_test', 60, 1, 1, '2025-06-30 08:23:01', 1),
-(31, 'TNSPC', '', 'assets/images/1751264664_Group 2216.png', 1999.00, 6330.00, 'mock', 'full_test', 60, NULL, 1, '2025-06-30 08:24:24', 1);
+(31, 'TNSPC', '', 'assets/images/1751264664_Group 2216.png', 1999.00, 6330.00, 'mock', 'full_test', 60, NULL, 1, '2025-06-30 08:24:24', 1),
+(37, 'Naan Mudhalvan', '', 'assets/images/1753257343_1d23abc3af.jpg', 10.00, 10.00, 'mock', 'full_test', 60, NULL, 1, '2025-07-23 09:55:43', 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `test_questions`
+--
+
+CREATE TABLE `test_questions` (
+  `id` int(11) NOT NULL,
+  `test_id` int(11) NOT NULL,
+  `question_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -165,7 +178,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `username`, `password`, `role`, `name`, `email`, `created_at`, `institute_id`) VALUES
 (1, 'admin', '0192023a7bbd73250516f069df18b500', 'admin', 'Admin User', 'admin@example.com', '2025-06-23 08:49:47', NULL),
-(15, 'superadmin', '4e4c56e4a15f89f05c2f4c72613da2a18c9665d4f0d6acce16415eb06f9be776', 'super_admin', 'Platform Super Admin', 'superadmin@example.com', '2025-06-26 15:22:23', NULL),
+(15, 'superadmin', '4e4c56e4a15f89f05c2f4c72613da2a18c9665d4f0d6acce16415eb06f9be776', 'super_admin', 'Platform Super Admin', 'superadmin@example.com', '2025-06-26 15:22:23', 0),
 (16, 'vendor01', '00fc1e6c602824793c9840e781e5e20747507e26ddf0d60fab996567a0327cdf', 'vendor', 'Vendor Name', 'vendor01@yourplatform.com', '2025-06-26 15:28:56', 1),
 (17, 'student01', '703b0a3d6ad75b649a28adde7d83c6251da457549263bc7ff45ec709b0a8448b', 'student', 'Student Name', 'student01@yourplatform.com', '2025-06-26 15:28:56', 1);
 
@@ -199,6 +212,14 @@ ALTER TABLE `question_banks`
 ALTER TABLE `test_packs`
   ADD PRIMARY KEY (`id`),
   ADD KEY `institute_id` (`institute_id`);
+
+--
+-- Indexes for table `test_questions`
+--
+ALTER TABLE `test_questions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_test_question` (`test_id`,`question_id`),
+  ADD KEY `question_id` (`question_id`);
 
 --
 -- Indexes for table `test_sessions`
@@ -242,7 +263,13 @@ ALTER TABLE `question_banks`
 -- AUTO_INCREMENT for table `test_packs`
 --
 ALTER TABLE `test_packs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+
+--
+-- AUTO_INCREMENT for table `test_questions`
+--
+ALTER TABLE `test_questions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `test_sessions`
@@ -277,6 +304,13 @@ ALTER TABLE `question_banks`
 --
 ALTER TABLE `test_packs`
   ADD CONSTRAINT `test_packs_ibfk_1` FOREIGN KEY (`institute_id`) REFERENCES `institutions` (`id`);
+
+--
+-- Constraints for table `test_questions`
+--
+ALTER TABLE `test_questions`
+  ADD CONSTRAINT `test_questions_ibfk_1` FOREIGN KEY (`test_id`) REFERENCES `test_packs` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `test_questions_ibfk_2` FOREIGN KEY (`question_id`) REFERENCES `question_banks` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `test_sessions`
