@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ✅ Create Test
         if ($action === 'create') {
             $created_at = date('Y-m-d H:i:s');
-            $instituteId = ($user['role'] === 'vendor') ? $user['institute_id'] : 0;
+            $instituteId = ($user['role'] === 'vendor') ? $user['institute_id'] : null;
 
             $stmt = $db->prepare("INSERT INTO test_packs (title, description, price, mrp, test_type, timer_type, duration_minutes, institute_id, is_active, is_visible_to_students, created_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([

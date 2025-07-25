@@ -339,7 +339,19 @@ if ($user['role'] === 'super_admin') {
                             </div>
 
                             <!-- Preview -->
-                            <button class="btn btn-sm btn-outline-success" title="Preview">
+                            <button class="btn btn-sm btn-outline-success view-details-btn" title="View Details"
+                                data-id="<?= $question['id'] ?>"
+                                data-subject="<?= htmlspecialchars($question['subject']) ?>"
+                                data-topic="<?= htmlspecialchars($question['topic']) ?>"
+                                data-subtopic="<?= htmlspecialchars($question['subtopic']) ?>"
+                                data-question_text="<?= htmlspecialchars($question['question_text']) ?>"
+                                data-options="<?= htmlspecialchars($question['options']) ?>"
+                                data-correct_answer="<?= htmlspecialchars($question['correct_answer']) ?>"
+                                data-explanation="<?= htmlspecialchars($question['explanation']) ?>"
+                                data-difficulty="<?= htmlspecialchars($question['difficulty']) ?>"
+                                data-exam_year="<?= htmlspecialchars($question['exam_year']) ?>"
+                                data-source="<?= htmlspecialchars($question['source']) ?>"
+                                data-is_public="<?= $question['is_public'] ? 'Yes' : 'No' ?>">
                                 <i class="fas fa-eye"></i>
                             </button>
 
@@ -350,8 +362,10 @@ if ($user['role'] === 'super_admin') {
                             </button>
 
                             <!-- Add to Test -->
-                            <button class="btn btn-sm btn-outline-info" title="Add to Test"
-                                onclick="TMS.addQuestionToTest(<?= $question['id'] ?>, '<?= htmlspecialchars($question['question_text']) ?>')">
+                            <button class="btn btn-sm btn-outline-info add-to-test-btn" title="Add to Test"
+                                data-question-id="<?= $question['id'] ?>"
+                                data-question-label="<?= htmlspecialchars($question['question_text']) ?>"
+                                data-bs-toggle="modal" data-bs-target="#addToTestModal">
                                 <i class="fas fa-plus"></i>
                             </button>
 
@@ -370,6 +384,83 @@ if ($user['role'] === 'super_admin') {
     </div>
     <?php endforeach; ?>
 </div>
+
+<!-- Question Preview Modal -->
+<div class="modal fade" id="questionPreviewModal" tabindex="-1" aria-labelledby="questionPreviewModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="questionPreviewModalLabel">Question Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="preview-question-content">
+                    <!-- Content will be loaded by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Helper to decode options JSON if present
+function renderOptions(optionsJson) {
+    let html = '';
+    try {
+        const options = JSON.parse(optionsJson);
+        html += '<ul class="list-group mb-2">';
+        for (const key of ['A', 'B', 'C', 'D']) {
+            if (options[key]) {
+                html += `<li class="list-group-item"><strong>${key}.</strong> ${options[key]}</li>`;
+            }
+        }
+        html += '</ul>';
+    } catch (e) {}
+    return html;
+}
+
+// Preview button click handler
+$(document).on('click', '.preview-btn', function() {
+    const q = $(this).data('question');
+    let html = '';
+    html +=
+        `<div><span class='badge bg-primary'>${q.subject}</span> <span class='badge bg-secondary'>${q.topic}</span> <span class='badge bg-${q.difficulty === 'easy' ? 'success' : (q.difficulty === 'medium' ? 'warning' : 'danger')}'>${q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1)}</span></div>`;
+    html += `<h5 class='mt-3'>${q.question_text}</h5>`;
+    html += renderOptions(q.options);
+    html += `<div class='mb-2'><strong>Correct Answer:</strong> ${q.correct_answer}</div>`;
+    html += `<div class='mb-2'><strong>Explanation:</strong> ${q.explanation || '-'}</div>`;
+    html +=
+        `<div class='mb-2'><strong>Exam Year:</strong> ${q.exam_year} <strong>Source:</strong> ${q.source}</div>`;
+    html += `<div class='mb-2'><strong>Subtopic:</strong> ${q.subtopic || '-'}</div>`;
+    html += `<div class='mb-2'><strong>Public:</strong> ${q.is_public ? 'Yes' : 'No'}</div>`;
+    $('#preview-question-content').html(html);
+    var modal = new bootstrap.Modal(document.getElementById('questionPreviewModal'));
+    modal.show();
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.preview-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var q = JSON.parse(this.getAttribute('data-question'));
+            var msg = 'Subject: ' + q.subject + '\n';
+            msg += 'Topic: ' + q.topic + '\n';
+            msg += 'Difficulty: ' + q.difficulty + '\n';
+            msg += 'Question: ' + q.question_text + '\n';
+            msg += 'Options: ' + q.options + '\n';
+            msg += 'Correct Answer: ' + q.correct_answer + '\n';
+            msg += 'Explanation: ' + (q.explanation || '-') + '\n';
+            alert(msg);
+        });
+    });
+});
+</script>
 
 <!-- Bulk Actions -->
 <div class="card">
@@ -805,3 +896,55 @@ if ($user['role'] === 'super_admin') {
 </div>
 
 <?php endif; ?>
+
+<script>
+document.querySelectorAll('.view-details-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        let subject = this.getAttribute('data-subject');
+        let topic = this.getAttribute('data-topic');
+        let subtopic = this.getAttribute('data-subtopic');
+        let question_text = this.getAttribute('data-question_text');
+        let options = this.getAttribute('data-options');
+        let correct_answer = this.getAttribute('data-correct_answer');
+        let explanation = this.getAttribute('data-explanation');
+        let difficulty = this.getAttribute('data-difficulty');
+        let exam_year = this.getAttribute('data-exam_year');
+        let source = this.getAttribute('data-source');
+        let is_public = this.getAttribute('data-is_public');
+
+        let optionsHtml = '';
+        try {
+            let opts = JSON.parse(options);
+            optionsHtml += '<ul class="list-group mb-2">';
+            ['A', 'B', 'C', 'D'].forEach(function(key) {
+                if (opts[key]) {
+                    optionsHtml +=
+                        `<li class="list-group-item"><strong>${key}.</strong> ${opts[key]}</li>`;
+                }
+            });
+            optionsHtml += '</ul>';
+        } catch (e) {}
+
+        let html = '';
+        html +=
+            `<div><span class='badge bg-primary'>${subject}</span> <span class='badge bg-secondary'>${topic}</span> <span class='badge bg-${difficulty === 'easy' ? 'success' : (difficulty === 'medium' ? 'warning' : 'danger')}'>${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span></div>`;
+        html += `<h5 class='mt-3'>${question_text}</h5>`;
+        html += optionsHtml;
+        html += `<div class='mb-2'><strong>Correct Answer:</strong> ${correct_answer}</div>`;
+        html += `<div class='mb-2'><strong>Explanation:</strong> ${explanation || '-'}</div>`;
+        html +=
+            `<div class='mb-2'><strong>Exam Year:</strong> ${exam_year} <strong>Source:</strong> ${source}</div>`;
+        html += `<div class='mb-2'><strong>Subtopic:</strong> ${subtopic || '-'}</div>`;
+        html += `<div class='mb-2'><strong>Public:</strong> ${is_public}</div>`;
+
+        // Use modal if exists, else fallback to alert
+        if (document.getElementById('questionPreviewModal')) {
+            document.getElementById('preview-question-content').innerHTML = html;
+            let modal = new bootstrap.Modal(document.getElementById('questionPreviewModal'));
+            modal.show();
+        } else {
+            alert(subject + '\n' + topic + '\n' + question_text);
+        }
+    });
+});
+</script>
