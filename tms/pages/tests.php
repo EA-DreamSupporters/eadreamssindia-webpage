@@ -185,6 +185,40 @@ if ($action === 'delete' && isset($_GET['id'])) {
         $action = 'list';
     }
 }
+
+// ===================== AJAX: Fetch Questions for Modal =====================
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'fetch_test_questions') {
+    header('Content-Type: application/json');
+
+    $testId = isset($_GET['test_id']) ? (int) $_GET['test_id'] : 0;
+
+    if ($testId <= 0) {
+        echo json_encode([]);
+        exit;
+    }
+
+    // DB connection
+    require_once '../config/database.php'; // adjust if needed
+
+    // Fetch questions from test_questions JOIN question_banks
+    $stmt = $pdo->prepare("
+    SELECT qb.id, qb.question_text, qb.options, qb.correct_answer, qb.explanation
+    FROM test_questions tq
+    JOIN question_banks qb ON tq.question_id = qb.id
+    WHERE tq.test_id = ?
+");
+$stmt->execute([$testId]);
+
+    $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Decode options (assuming it's stored as JSON string in DB)
+    foreach ($questions as &$q) {
+        $q['options'] = json_decode($q['options'], true);
+    }
+
+    echo json_encode($questions);
+    exit;
+}
 ?>
 
 
@@ -353,14 +387,15 @@ if ($action === 'delete' && isset($_GET['id'])) {
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <button class="btn btn-outline-success view-details-btn" title="View Details"
-                                    data-id="<?= $test['id'] ?>" data-title="<?= htmlspecialchars($test['title']) ?>"
-                                    data-description="<?= htmlspecialchars($test['description']) ?>"
-                                    data-price="<?= number_format($test['price']) ?>"
-                                    data-mrp="<?= number_format($test['mrp']) ?>"
-                                    data-type="<?= ucfirst($test['test_type']) ?>"
-                                    data-duration="<?= $test['duration_minutes'] ?>"
+                                    data-id="<?= (int)$test['id'] ?>"
+                                    data-title="<?= htmlspecialchars($test['title'], ENT_QUOTES) ?>"
+                                    data-description="<?= htmlspecialchars($test['description'], ENT_QUOTES) ?>"
+                                    data-price="<?= number_format((float)$test['price']) ?>"
+                                    data-mrp="<?= number_format((float)$test['mrp']) ?>"
+                                    data-type="<?= ucfirst(htmlspecialchars($test['test_type'])) ?>"
+                                    data-duration="<?= (int)$test['duration_minutes'] ?>"
                                     data-status="<?= $test['is_active'] ? 'Active' : 'Inactive' ?>"
-                                    data-cover_image="<?= htmlspecialchars($test['cover_image']) ?>">
+                                    data-cover_image="<?= htmlspecialchars($test['cover_image'], ENT_QUOTES) ?>">
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 <button class="btn btn-outline-info copy-link-btn" title="Copy Link"
@@ -420,15 +455,17 @@ if ($totalPages > 1): ?>
 <?php endif; ?>
 
 <!-- Test Details Modal -->
-<div class="modal fade" id="testDetailsModal" tabindex="-1" aria-labelledby="testDetailsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade" id="testDetailsModal" tabindex="-1" role="dialog" aria-labelledby="testDetailsModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="testDetailsLabel">Test Pack Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="testDetailsModalLabel">Test Pack Details</h5>
             </div>
-            <div class="modal-body" id="testDetailsContent">
-                <!-- JS will dynamically fill content here -->
+            <div class="modal-body">
+                <div id="testDetailsContent"></div>
+                <hr>
+                <div id="questionDetails" class="mt-4"></div>
             </div>
         </div>
     </div>
@@ -825,34 +862,102 @@ if ($totalPages > 1): ?>
 <?php endif; ?>
 
 <script>
-document.querySelectorAll('.view-details-btn').forEach(function(button) {
+document.querySelectorAll('.view-details-btn').forEach(button => {
     button.addEventListener('click', function() {
-        let image = this.getAttribute('data-cover_image');
-        let title = this.getAttribute('data-title');
-        let desc = this.getAttribute('data-description');
-        let price = this.getAttribute('data-price');
-        let mrp = this.getAttribute('data-mrp');
-        let type = this.getAttribute('data-type');
-        let duration = this.getAttribute('data-duration');
-        let status = this.getAttribute('data-status');
+        const testId = this.getAttribute('data-id');
+        const title = this.getAttribute('data-title');
+        const description = this.getAttribute('data-description');
+        const price = this.getAttribute('data-price');
+        const mrp = this.getAttribute('data-mrp');
+        const type = this.getAttribute('data-type');
+        const duration = this.getAttribute('data-duration');
+        const status = this.getAttribute('data-status');
+        const coverImage = this.getAttribute('data-cover_image');
 
+        // Test basic details
         let html = `
-            ${image ? `<img src="${image}" alt="Cover Image" class="img-fluid mb-3" style="max-height: 300px; width: auto;">` : ''}
-            <h4>${title}</h4>
+            <p><strong>Title:</strong> ${title}</p>
+            <p><strong>Description:</strong> ${description}</p>
             <p><strong>Type:</strong> ${type}</p>
-            <p><strong>Duration:</strong> ${duration} Minutes</p>
-            <p><strong>Price:</strong> ₹${price} ${mrp > price ? '<small class="text-muted ms-2 text-decoration-line-through">₹' + mrp + '</small>' : ''}</p>
+            <p><strong>Price:</strong> ₹${price} <del class="text-muted">₹${mrp}</del></p>
+            <p><strong>Duration:</strong> ${duration} minutes</p>
             <p><strong>Status:</strong> ${status}</p>
-            <hr>
-            <p>${desc}</p>
         `;
 
+        if (coverImage) {
+            html +=
+                `<p><strong>Cover:</strong><br><img src="${coverImage}" class="img-fluid rounded" alt="Cover Image" style="max-height: 200px;"></p>`;
+        }
+
+        // Fill the modal with test pack details
         document.getElementById('testDetailsContent').innerHTML = html;
-        let modal = new bootstrap.Modal(document.getElementById('testDetailsModal'));
+
+        // Placeholder before questions load
+        document.getElementById('questionDetails').innerHTML =
+            `<p class="text-muted">Loading questions...</p>`;
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('testDetailsModal'));
         modal.show();
+
+        // Fetch and render questions via AJAX
+        fetch(`questions.php?ajax=fetch_test_questions&test_id=${testId}`)
+            .then(res => res.json())
+            .then(data => {
+                const container = document.getElementById('questionDetails');
+                if (!data || data.length === 0) {
+                    container.innerHTML =
+                        '<p class="text-muted">No questions added to this test.</p>';
+                    return;
+                }
+
+                let html = '<h5 class="mt-4">Questions in this Test</h5>';
+
+                data.forEach((q, i) => {
+                    // Try to parse options if it's a string
+                    if (q.options && typeof q.options === 'string') {
+                        try {
+                            q.options = JSON.parse(q.options);
+                        } catch (e) {
+                            q.options = {};
+                        }
+                    }
+
+                    // Render options
+                    let optionsHtml = '';
+                    if (q.options && typeof q.options === 'object') {
+                        Object.entries(q.options).forEach(([key, value]) => {
+                            optionsHtml +=
+                                `<li><strong>${key}:</strong> ${value}</li>`;
+                        });
+                        optionsHtml = `<ul class="list-unstyled">${optionsHtml}</ul>`;
+                    }
+
+                    html += `
+                        <div class="card mb-3 shadow-sm">
+                            <div class="card-body">
+                                <h6><strong>Q${i + 1}:</strong> ${q.question_text}</h6>
+                                ${optionsHtml}
+                                <p><strong>Answer:</strong> ${q.correct_answer}</p>
+                                ${q.explanation ? `<p><strong>Explanation:</strong> ${q.explanation}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('questionDetails').innerHTML =
+                    `<p class="text-danger">Failed to load questions.</p>`;
+            });
     });
 });
 </script>
+
+
+
 
 <script>
 document.querySelectorAll('.copy-link-btn').forEach(function(button) {

@@ -1,12 +1,18 @@
 <?php
+
 $user = getCurrentUser();
 $action = $_GET['action'] ?? 'list';
+
 if (isset($_GET['success'])) {
     if ($_GET['success'] === 'created') $success = "Question added successfully!";
     elseif ($_GET['success'] === 'updated') $success = "Question updated successfully!";
     elseif ($_GET['success'] === 'deleted') $success = "Question deleted successfully!";
+    elseif ($_GET['success'] === 'added_to_test') $success = "Question successfully added to selected test pack!";
 }
 
+if (isset($_GET['error']) && $_GET['error'] === 'exists') {
+    $error = "This question is already added to that test pack.";
+}
 
 // Delete Action
 if ($action === 'delete' && isset($_GET['id'])) {
@@ -15,6 +21,31 @@ if ($action === 'delete' && isset($_GET['id'])) {
     $stmt->execute([$q_id]);
     header("Location: index.php?page=questions&success=deleted");
     exit;
+}
+
+// Add Question to Test Pack
+if ($action === 'add_question_to_test' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $test_id = intval($_POST['test_id'] ?? 0);
+    $question_id = intval($_POST['question_id'] ?? 0);
+
+    try {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM test_questions WHERE test_id = ? AND question_id = ?");
+        $stmt->execute([$test_id, $question_id]);
+        $exists = $stmt->fetchColumn();
+
+        if ($exists) {
+            header("Location: index.php?page=questions&error=exists");
+            exit;
+        }
+
+        $stmt = $db->prepare("INSERT INTO test_questions (test_id, question_id) VALUES (?, ?)");
+        $stmt->execute([$test_id, $question_id]);
+
+        header("Location: index.php?page=questions&success=added_to_test");
+        exit;
+    } catch (Exception $e) {
+        $error = "Failed to add to test: " . $e->getMessage();
+    }
 }
 
 // Fetch question for editing
@@ -60,18 +91,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             '', $subject, $topic, $subtopic, $question_text, $options, $correct_answer, $explanation, $difficulty, $exam_year, $source, $is_public, $user['institute_id'], $created_at
         ]);
 
-        header("Location: index.php?page=questions&success=1");
+        header("Location: index.php?page=questions&success=created");
         exit;
     } catch (Exception $e) {
         $error = "Error: " . $e->getMessage();
     }
 }
 
-// Update question on edit
+// Update question
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'edit' && isset($_GET['id'])) {
     try {
         $question_id = intval($_GET['id']);
-
         $subject = trim($_POST['subject'] ?? '');
         $new_subject = trim($_POST['new_subject'] ?? '');
         if (!empty($new_subject)) $subject = $new_subject;
@@ -109,7 +139,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'edit' && isset($_GET['
             $question_id
         ]);
 
-        // Redirect after update to prevent resubmission
         header("Location: index.php?page=questions&success=updated");
         exit;
 
@@ -118,14 +147,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'edit' && isset($_GET['
     }
 }
 
-
-// Fetch subjects and topics for filters
+// Fetch subjects and topics
 $allSubjects = $db->query("SELECT DISTINCT subject FROM question_banks WHERE subject IS NOT NULL AND subject != ''")->fetchAll(PDO::FETCH_COLUMN);
 $allTopics = $db->query("SELECT DISTINCT topic FROM question_banks WHERE topic IS NOT NULL AND topic != ''")->fetchAll(PDO::FETCH_COLUMN);
 $allSources = $db->query("SELECT DISTINCT source FROM question_banks WHERE source IS NOT NULL AND source != ''")->fetchAll(PDO::FETCH_COLUMN);
 
-
-// Fetch questions for list
+// Fetch questions
 if ($user['role'] === 'super_admin') {
     $stmt = $db->query("SELECT * FROM question_banks ORDER BY created_at DESC LIMIT 50");
     $questions = $stmt->fetchAll();
@@ -136,7 +163,39 @@ if ($user['role'] === 'super_admin') {
 } else {
     $questions = [];
 }
+
+// ===================== AJAX: Fetch Questions for Modal =====================
+
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'fetch_test_questions') {
+    header('Content-Type: application/json');
+
+    $testId = isset($_GET['test_id']) ? (int) $_GET['test_id'] : 0;
+
+    if ($testId <= 0) {
+        echo json_encode([]);
+        exit;
+    }
+
+    $stmt = $db->prepare("
+        SELECT qb.id, qb.question_text, qb.options, qb.correct_answer, qb.explanation
+        FROM test_questions tq
+        JOIN question_banks qb ON tq.question_id = qb.id
+        WHERE tq.test_id = ?
+    ");
+    $stmt->execute([$testId]);
+
+    $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($questions as &$q) {
+        $q['options'] = json_decode($q['options'], true);
+    }
+
+    echo json_encode($questions);
+    exit;
+}
 ?>
+
+
 
 
 <div class="row">
@@ -362,7 +421,7 @@ if ($user['role'] === 'super_admin') {
                             </button>
 
                             <!-- Add to Test -->
-                            <button class="btn btn-sm btn-outline-info add-to-test-btn" title="Add to Test"
+                            <button class="btn btn-sm btn-outline-info add-to-test-btn" title="Add to Test Pack"
                                 data-question-id="<?= $question['id'] ?>"
                                 data-question-label="<?= htmlspecialchars($question['question_text']) ?>"
                                 data-bs-toggle="modal" data-bs-target="#addToTestModal">
@@ -383,6 +442,38 @@ if ($user['role'] === 'super_admin') {
         </div>
     </div>
     <?php endforeach; ?>
+</div>
+
+<!-- Modal: Add Question to Test -->
+<div class="modal fade" id="addToTestModal" tabindex="-1" aria-labelledby="addToTestModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="POST" action="index.php?page=questions&action=add_question_to_test">
+            <input type="hidden" name="question_id" id="modalQuestionId">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Question to Test Pack</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-bold" id="modalQuestionText"></p>
+                    <div class="mb-3">
+                        <label class="form-label">Select Test Pack</label>
+                        <select class="form-select" name="test_id" required>
+                            <?php
+              $packs = $db->query("SELECT id, title FROM test_packs WHERE is_active = 1 AND is_visible_to_students = 1 ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+              foreach ($packs as $pack) {
+                  echo "<option value=\"{$pack['id']}\">" . htmlspecialchars($pack['title']) . "</option>";
+              }
+              ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary">Add to Test</button>
+                </div>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Question Preview Modal -->
@@ -945,6 +1036,18 @@ document.querySelectorAll('.view-details-btn').forEach(function(button) {
         } else {
             alert(subject + '\n' + topic + '\n' + question_text);
         }
+    });
+});
+</script>
+
+<script>
+document.querySelectorAll('.add-to-test-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const questionId = this.dataset.questionId;
+        const questionLabel = this.dataset.questionLabel;
+
+        document.getElementById('modalQuestionId').value = questionId;
+        document.getElementById('modalQuestionText').textContent = questionLabel;
     });
 });
 </script>
