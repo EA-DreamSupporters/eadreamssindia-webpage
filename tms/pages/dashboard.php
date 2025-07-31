@@ -1,15 +1,12 @@
 <?php
-if ($user['role'] === 'super_admin') {
-    $stmt = $db->query("SELECT COUNT(*) FROM test_packs");
-    $stats['total_tests'] = $stmt->fetchColumn();
-} else {
-    $stmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE institute_id = ?");
-    $stmt->execute([$user['institute_id']]);
-    $stats['total_tests'] = $stmt->fetchColumn();
+// Get current user
+$user = getCurrentUser();
+if (!$user) {
+    header("Location: login.php");
+    exit;
 }
 
-
-// Fetch dashboard statistics
+// Initialize stats array first
 $stats = [
     'total_tests' => 0,
     'active_students' => 0,
@@ -17,32 +14,49 @@ $stats = [
     'monthly_revenue' => 0
 ];
 
+// Fetch dashboard statistics
 try {
     // Total Tests
     if ($user['role'] === 'super_admin') {
         $stats['total_tests'] = $db->query("SELECT COUNT(*) FROM test_packs")->fetchColumn();
     } else {
-        $stmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE institute_id = ?");
-        $stmt->execute([$user['institute_id']]);
-        $stats['total_tests'] = $stmt->fetchColumn();
+        // Handle case where institute_id might be null
+        if (isset($user['institute_id']) && $user['institute_id']) {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM test_packs WHERE institute_id = ?");
+            $stmt->execute([$user['institute_id']]);
+            $stats['total_tests'] = $stmt->fetchColumn();
+        } else {
+            $stats['total_tests'] = 0;
+        }
     }
 
     // Active Students
     if ($user['role'] === 'super_admin') {
         $stats['active_students'] = $db->query("SELECT COUNT(*) FROM users WHERE role = 'student'")->fetchColumn();
     } else {
-        $stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE role = 'student' AND institute_id = ?");
-        $stmt->execute([$user['institute_id']]);
-        $stats['active_students'] = $stmt->fetchColumn();
+        // Handle case where institute_id might be null
+        if (isset($user['institute_id']) && $user['institute_id']) {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE role = 'student' AND institute_id = ?");
+            $stmt->execute([$user['institute_id']]);
+            $stats['active_students'] = $stmt->fetchColumn();
+        } else {
+            $stats['active_students'] = 0;
+        }
     }
 
     // Total Questions
     if ($user['role'] === 'super_admin') {
         $stats['total_questions'] = $db->query("SELECT COUNT(*) FROM question_banks")->fetchColumn();
     } else {
-        $stmt = $db->prepare("SELECT COUNT(*) FROM question_banks WHERE institute_id = ?");
-        $stmt->execute([$user['institute_id']]);
-        $stats['total_questions'] = $stmt->fetchColumn();
+        // Handle case where institute_id might be null or show all questions
+        if (isset($user['institute_id']) && $user['institute_id']) {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM question_banks WHERE institute_id = ? OR institute_id IS NULL OR is_public = 1");
+            $stmt->execute([$user['institute_id']]);
+            $stats['total_questions'] = $stmt->fetchColumn();
+        } else {
+            // Show all public questions if no institute_id
+            $stats['total_questions'] = $db->query("SELECT COUNT(*) FROM question_banks WHERE institute_id IS NULL OR is_public = 1")->fetchColumn();
+        }
     }
 
     // Mock Revenue

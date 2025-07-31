@@ -186,39 +186,6 @@ if ($action === 'delete' && isset($_GET['id'])) {
     }
 }
 
-// ===================== AJAX: Fetch Questions for Modal =====================
-if (isset($_GET['ajax']) && $_GET['ajax'] === 'fetch_test_questions') {
-    header('Content-Type: application/json');
-
-    $testId = isset($_GET['test_id']) ? (int) $_GET['test_id'] : 0;
-
-    if ($testId <= 0) {
-        echo json_encode([]);
-        exit;
-    }
-
-    // DB connection
-    require_once '../config/database.php'; // adjust if needed
-
-    // Fetch questions from test_questions JOIN question_banks
-    $stmt = $pdo->prepare("
-    SELECT qb.id, qb.question_text, qb.options, qb.correct_answer, qb.explanation
-    FROM test_questions tq
-    JOIN question_banks qb ON tq.question_id = qb.id
-    WHERE tq.test_id = ?
-");
-$stmt->execute([$testId]);
-
-    $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Decode options (assuming it's stored as JSON string in DB)
-    foreach ($questions as &$q) {
-        $q['options'] = json_decode($q['options'], true);
-    }
-
-    echo json_encode($questions);
-    exit;
-}
 ?>
 
 
@@ -901,11 +868,21 @@ document.querySelectorAll('.view-details-btn').forEach(button => {
         modal.show();
 
         // Fetch and render questions via AJAX
-        fetch(`questions.php?ajax=fetch_test_questions&test_id=${testId}`)
+        fetch(`ajax/fetch_test_questions.php?test_id=${testId}`)
             .then(res => res.json())
             .then(data => {
                 const container = document.getElementById('questionDetails');
-                if (!data || data.length === 0) {
+
+                // Handle error response
+                if (data.error) {
+                    container.innerHTML = `<p class="text-danger">Error: ${data.error}</p>`;
+                    return;
+                }
+
+                // Handle new response format
+                const questions = data.questions || data;
+
+                if (!questions || questions.length === 0) {
                     container.innerHTML =
                         '<p class="text-muted">No questions added to this test.</p>';
                     return;
@@ -913,7 +890,7 @@ document.querySelectorAll('.view-details-btn').forEach(button => {
 
                 let html = '<h5 class="mt-4">Questions in this Test</h5>';
 
-                data.forEach((q, i) => {
+                questions.forEach((q, i) => {
                     // Try to parse options if it's a string
                     if (q.options && typeof q.options === 'string') {
                         try {
@@ -948,9 +925,9 @@ document.querySelectorAll('.view-details-btn').forEach(button => {
                 container.innerHTML = html;
             })
             .catch(err => {
-                console.error(err);
+                console.error('Fetch error:', err);
                 document.getElementById('questionDetails').innerHTML =
-                    `<p class="text-danger">Failed to load questions.</p>`;
+                    `<p class="text-danger">Failed to load questions. Error: ${err.message}</p>`;
             });
     });
 });
