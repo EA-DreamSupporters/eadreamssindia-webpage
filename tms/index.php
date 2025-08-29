@@ -5,16 +5,29 @@ require_once 'includes/auth.php';
 
 // Simple routing
 $page = $_GET['page'] ?? 'dashboard';
+$action = $_GET['action'] ?? '';
 $allowed_pages = ['dashboard', 'tests', 'test_details', 'questions', 'analytics', 'vendors', 'students', 'settings', 'login'];
 
 if (!in_array($page, $allowed_pages)) {
     $page = 'dashboard';
 }
 
+// Check if this is an AJAX request to questions page
+$ajax_actions = ['bulk_duplicate', 'bulk_delete', 'process_upload', 'process_text', 'import_questions'];
+$is_ajax_request = ($page === 'questions' && in_array($action, $ajax_actions) && $_SERVER['REQUEST_METHOD'] === 'POST');
+
 // Check authentication for protected pages
 if ($page !== 'login' && !isLoggedIn()) {
-    header('Location: index.php?page=login');
-    exit();
+    if ($is_ajax_request) {
+        // For AJAX requests, return JSON error instead of redirecting
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Authentication required. Please log in again.']);
+        exit();
+    } else {
+        // For regular requests, redirect to login
+        header('Location: index.php?page=login');
+        exit();
+    }
 }
 
 if ($page !== 'login') {
