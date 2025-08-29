@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 25, 2025 at 10:18 AM
+-- Generation Time: Aug 29, 2025 at 08:39 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -88,8 +88,7 @@ CREATE TABLE `question_banks` (
 --
 
 INSERT INTO `question_banks` (`id`, `title`, `subject`, `topic`, `subtopic`, `question_text`, `options`, `correct_answer`, `explanation`, `difficulty`, `exam_year`, `source`, `is_public`, `institute_id`, `created_at`) VALUES
-(1, '', 'Polity', 'Judiciary', 'Contempt of Court', 'Consider the following statements:\r\n\r\nPursuant to the report of H.N. Sanyal Committee, the Contempt of Courts Act, 1971 was passed.\r\nThe Constitution of India empowers the Supreme Court and the High Courts to punish for contempt of themselves.\r\nThe Constitution of India defines Civil Contempt and Criminal Contempt.\r\nIn India, the Parliament is vested with the powers to make laws on Contempt of Court.\r\nWhich of the statements given above is/are correct?', '{\"A\":\"1 and 2 only\",\"B\":\"1, 2 and 4 only\",\"C\":\"3 and 4 only\",\"D\":\"3 only\"}', 'B', '', 'medium', '2022', 'UPSC', 1, NULL, '2025-06-30 05:21:14'),
-(2, '', 'Polity', 'Judiciary', 'Contempt of Court', 'With reference to the writs issued by the Courts in India, consider the following statements:\r\n\r\n1. Mandamus will not lie against a private organization unless it is entrusted with a public duty.\r\n2. Mandamus will not lie against a Company even though it may be a Government Company.\r\n3. Any public minded person can be a petitioner to move the Court to obtain the writ of Quo Warranto.\r\n\r\nWhich of the statements given above are correct?', '{\"A\":\"1 and 2 only\",\"B\":\"2 and 3 only\",\"C\":\"3 and 4 only\",\"D\":\"1, 2 and 3\"}', 'A', '', 'medium', '2022', 'UPSC', 1, NULL, '2025-06-30 05:45:17');
+(49, '', 'Economy', 'Econmic', '', '', '{\"type\":\"text_mcq\",\"A\":\"\",\"B\":\"\",\"C\":\"\",\"D\":\"\",\"E\":\"\",\"i18n\":{\"en\":{\"question_text\":\"1. Which of the following best describes the nature of the Indian economy?\\r\\n(i) Mixed economy\\r\\n(ii) Socialist economy\\r\\n(iii) Capitalist economy\\r\\n(iv) Agrarian economy\",\"options\":{\"A\":\"(i) only\",\"B\":\"(i) and (iv) only\",\"C\":\"(ii) and (iii) only\",\"D\":\" (ii), (iii), and (iv) only\",\"E\":\"\"}},\"ta\":{\"question_text\":\"1. \\u0b87\\u0ba8\\u0bcd\\u0ba4\\u0bbf\\u0baf \\u0baa\\u0bca\\u0bb0\\u0bc1\\u0bb3\\u0bbe\\u0ba4\\u0bbe\\u0bb0\\u0ba4\\u0bcd\\u0ba4\\u0bbf\\u0ba9\\u0bcd \\u0b87\\u0baf\\u0bb2\\u0bcd\\u0baa\\u0bc1 \\u0b95\\u0bc1\\u0bb1\\u0bbf\\u0ba4\\u0bcd\\u0ba4 \\u0baa\\u0bbf\\u0ba9\\u0bcd\\u0bb5\\u0bb0\\u0bc1\\u0bb5\\u0ba9\\u0bb5\\u0bb1\\u0bcd\\u0bb1\\u0bc1\\u0bb3\\u0bcd \\u0b8e\\u0ba4\\u0bc1 \\u0b9a\\u0bb0\\u0bbf\\u0baf\\u0bbe\\u0ba9\\u0ba4\\u0bc1?\\r\\n(i) \\u0b95\\u0bb2\\u0baa\\u0bcd\\u0baa\\u0bc1 \\u0baa\\u0bca\\u0bb0\\u0bc1\\u0bb3\\u0bbe\\u0ba4\\u0bbe\\u0bb0\\u0bae\\u0bcd\\r\\n(ii) \\u0b9a\\u0bae\\u0bc2\\u0b95\\u0ba8\\u0bb2\\u0bb5\\u0bbe\\u0ba4 \\u0baa\\u0bca\\u0bb0\\u0bc1\\u0bb3\\u0bbe\\u0ba4\\u0bbe\\u0bb0\\u0bae\\u0bcd\\r\\n(iii) \\u0bae\\u0bc2\\u0bb2\\u0ba4\\u0ba9\\u0bb5\\u0bbe\\u0ba4 \\u0baa\\u0bca\\u0bb0\\u0bc1\\u0bb3\\u0bbe\\u0ba4\\u0bbe\\u0bb0\\u0bae\\u0bcd\\r\\n(iv) \\u0bb5\\u0bbf\\u0bb5\\u0b9a\\u0bbe\\u0baf \\u0b86\\u0ba4\\u0bbe\\u0bb0 \\u0baa\\u0bca\\u0bb0\\u0bc1\\u0bb3\\u0bbe\\u0ba4\\u0bbe\\u0bb0\\u0bae\\u0bcd\\r\\n\",\"options\":{\"A\":\"(i) \\u0bae\\u0b9f\\u0bcd\\u0b9f\\u0bc1\\u0bae\\u0bcd\",\"B\":\"(i) \\u0bae\\u0bb1\\u0bcd\\u0bb1\\u0bc1\\u0bae\\u0bcd (iv) \\u0bae\\u0b9f\\u0bcd\\u0b9f\\u0bc1\\u0bae\\u0bcd\",\"C\":\"(ii) \\u0bae\\u0bb1\\u0bcd\\u0bb1\\u0bc1\\u0bae\\u0bcd (iii) \\u0bae\\u0b9f\\u0bcd\\u0b9f\\u0bc1\\u0bae\\u0bcd\",\"D\":\"(ii), (iii), \\u0bae\\u0bb1\\u0bcd\\u0bb1\\u0bc1\\u0bae\\u0bcd (iv) \\u0bae\\u0b9f\\u0bcd\\u0b9f\\u0bc1\\u0bae\\u0bcd\",\"E\":\"\"}},\"hi\":{\"question_text\":\"\",\"options\":{\"A\":\"\",\"B\":\"\",\"C\":\"\",\"D\":\"\",\"E\":\"\"}}}}', 'B', 'India is a mixed economy with both public and private sectors. It also has a strong agrarian base.', 'easy', '2025', 'TNPSC', 1, NULL, '2025-08-22 04:11:30');
 
 -- --------------------------------------------------------
 
@@ -112,16 +111,6 @@ CREATE TABLE `test_packs` (
   `created_at` datetime DEFAULT current_timestamp(),
   `is_visible_to_students` tinyint(1) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `test_packs`
---
-
-INSERT INTO `test_packs` (`id`, `title`, `description`, `cover_image`, `price`, `mrp`, `test_type`, `timer_type`, `duration_minutes`, `institute_id`, `is_active`, `created_at`, `is_visible_to_students`) VALUES
-(11, 'UPSC DAMAKA', 'Heloow FAM', 'assets/images/1750949589_Slide 16_9 - 4.jpg', 1202.00, 3210.00, 'mock', 'full_test', 60, NULL, 1, '2025-06-26 16:53:09', 1),
-(29, 'TNPSC', '', 'assets/images/1751264581_f58a7789f8.jpg', 1999.00, 3000.00, 'mock', 'full_test', 60, 1, 1, '2025-06-30 08:23:01', 1),
-(31, 'TNSPC', '', 'assets/images/1751264664_Group 2216.png', 1999.00, 6330.00, 'mock', 'full_test', 60, NULL, 1, '2025-06-30 08:24:24', 1),
-(37, 'Naan Mudhalvan', '', 'assets/images/1753257343_1d23abc3af.jpg', 10.00, 10.00, 'mock', 'full_test', 60, NULL, 1, '2025-07-23 09:55:43', 1);
 
 -- --------------------------------------------------------
 
@@ -257,7 +246,7 @@ ALTER TABLE `institutions`
 -- AUTO_INCREMENT for table `question_banks`
 --
 ALTER TABLE `question_banks`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
 
 --
 -- AUTO_INCREMENT for table `test_packs`
@@ -269,7 +258,7 @@ ALTER TABLE `test_packs`
 -- AUTO_INCREMENT for table `test_questions`
 --
 ALTER TABLE `test_questions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `test_sessions`
