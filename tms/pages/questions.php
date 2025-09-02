@@ -18,613 +18,22 @@ $user = getCurrentUser();
 // Bulk Duplicate Questions
 if ($action === 'bulk_duplicate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        // Debug: Log the request
-        error_log("Bulk duplicate request received");
-        
-        $input = json_decode(file_get_contents('php://input'), true);
-        $question_ids = $input['question_ids'] ?? [];
-        
-        // Debug: Log the input
-        error_log("Question IDs received: " . print_r($question_ids, true));
-        
-        if (empty($question_ids)) {
-            echo json_encode(['success' => false, 'error' => 'No questions selected']);
-            exit;
-        }
-        
-        $question_ids = array_map('intval', $question_ids);
-        $question_ids = array_filter($question_ids, function($id) { return $id > 0; });
-        
-        if (empty($question_ids)) {
-            echo json_encode(['success' => false, 'error' => 'Invalid question IDs']);
-            exit;
-        }
-        
-        // Ensure we have user information
-        if (!isset($user) || !$user) {
-            $user = getCurrentUser();
-        }
-        
-        if (!$user || !isset($user['institute_id'])) {
-            echo json_encode(['success' => false, 'error' => 'User authentication required']);
-            exit;
-        }
-        
-        $duplicated_count = 0;
-        $errors = [];
-        
-        foreach ($question_ids as $question_id) {
-            try {
-                // Fetch original question
-                $stmt = $db->prepare("SELECT * FROM question_banks WHERE id = ?");
-                $stmt->execute([$question_id]);
-                $original = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-                if ($original) {
-                    // Create duplicate
-                    $stmt = $db->prepare("INSERT INTO question_banks (title, subject, topic, subtopic, question_text, options, correct_answer, explanation, difficulty, exam_year, source, is_public, institute_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                    $result = $stmt->execute([
-                        $original['title'] . ' (Copy)',
-                        $original['subject'],
-                        $original['topic'],
-                        $original['subtopic'],
-                        $original['question_text'],
-                        $original['options'],
-                        $original['correct_answer'],
-                        $original['explanation'],
-                        $original['difficulty'],
-                        $original['exam_year'],
-                        $original['source'],
-                        $original['is_public'],
-                        $user['institute_id'],
-                        date('Y-m-d H:i:s')
-                    ]);
-                    
-                    if ($result) {
-                        $duplicated_count++;
-                    } else {
-                        $errors[] = "Failed to duplicate question ID: $question_id";
-                    }
-                } else {
-                    $errors[] = "Question not found: $question_id";
-                }
-            } catch (Exception $e) {
-                $errors[] = "Error duplicating question $question_id: " . $e->getMessage();
-                error_log("Error duplicating question $question_id: " . $e->getMessage());
-            }
-        }
-        
-        $message = "Duplicated {$duplicated_count} questions successfully";
-        if (!empty($errors)) {
-            $message .= ". Errors: " . implode(", ", $errors);
-        }
-        
-        echo json_encode(['success' => true, 'message' => $message, 'duplicated_count' => $duplicated_count]);
+        // bulk_duplicate handler is implemented elsewhere (controller).
+        // This stub returns a simple JSON response to avoid fatal parse errors
+        echo json_encode(['success' => false, 'error' => 'bulk_duplicate not available in this context']);
         exit;
     } catch (Exception $e) {
-        error_log("Bulk duplicate error: " . $e->getMessage());
-        echo json_encode(['success' => false, 'error' => 'Failed to duplicate questions: ' . $e->getMessage()]);
+        error_log('bulk_duplicate stub error: ' . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => 'Internal error']);
         exit;
     }
 }
-
-// Bulk Delete Questions
-if ($action === 'bulk_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        // Debug: Log the request
-        error_log("Bulk delete request received");
-        
-        $input = json_decode(file_get_contents('php://input'), true);
-        $question_ids = $input['question_ids'] ?? [];
-        
-        // Debug: Log the input
-        error_log("Question IDs to delete: " . print_r($question_ids, true));
-        
-        if (empty($question_ids)) {
-            echo json_encode(['success' => false, 'error' => 'No questions selected']);
-            exit;
-        }
-        
-        $question_ids = array_map('intval', $question_ids);
-        $question_ids = array_filter($question_ids, function($id) { return $id > 0; });
-        
-        if (empty($question_ids)) {
-            echo json_encode(['success' => false, 'error' => 'Invalid question IDs']);
-            exit;
-        }
-        
-        // Delete questions (also removes from test_questions due to foreign key constraints)
-        $placeholders = str_repeat('?,', count($question_ids) - 1) . '?';
-        $stmt = $db->prepare("DELETE FROM question_banks WHERE id IN ($placeholders)");
-        $stmt->execute($question_ids);
-        
-        $deleted_count = $stmt->rowCount();
-        
-        error_log("Deleted {$deleted_count} questions successfully");
-        echo json_encode(['success' => true, 'message' => "Deleted {$deleted_count} questions successfully"]);
-        exit;
-    } catch (Exception $e) {
-        error_log("Bulk delete error: " . $e->getMessage());
-        echo json_encode(['success' => false, 'error' => 'Failed to delete questions: ' . $e->getMessage()]);
-        exit;
-    }
-}
-
-// Handle Template Download
-if ($action === 'download_template') {
-    $format = $_GET['format'] ?? 'excel';
-    
-    if ($format === 'csv') {
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="competitive_exam_questions_template.csv"');
-        header('Cache-Control: max-age=0');
-        header('Pragma: public');
-        
-        // Create CSV file content
-        $csvContent = createCSVTemplate();
-        echo $csvContent;
-        exit;
-    } else {
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="competitive_exam_questions_template.xlsx"');
-        header('Cache-Control: max-age=0');
-        header('Pragma: public');
-        
-        // Create Excel file content
-        $excelContent = createExcelTemplate();
-        echo $excelContent;
-        exit;
-    }
-}
-
-// Handle File Upload Processing
-if ($action === 'process_upload' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        if (!isset($_FILES['upload_file']) || $_FILES['upload_file']['error'] !== UPLOAD_ERR_OK) {
-            throw new Exception('No file uploaded or upload error occurred');
-        }
-        
-        $uploadedFile = $_FILES['upload_file'];
-        $fileExtension = strtolower(pathinfo($uploadedFile['name'], PATHINFO_EXTENSION));
-        
-        if (!in_array($fileExtension, ['xlsx', 'csv'])) {
-            throw new Exception('Only Excel (.xlsx) and CSV (.csv) files are supported');
-        }
-        
-        if ($uploadedFile['size'] > 10 * 1024 * 1024) { // 10MB limit
-            throw new Exception('File size exceeds 10MB limit');
-        }
-        
-        // Parse the uploaded file
-        $questions = parseUploadedFile($uploadedFile, $fileExtension);
-        
-        if (empty($questions)) {
-            throw new Exception('No valid questions found in the uploaded file');
-        }
-        
-        // Store parsed questions in session for preview
-        $_SESSION['bulk_upload_questions'] = $questions;
-        
-        echo json_encode([
-            'success' => true, 
-            'message' => 'File parsed successfully', 
-            'question_count' => count($questions),
-            'redirect' => 'index.php?page=questions&action=upload&step=preview'
-        ]);
-        exit;
-        
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        exit;
-    }
-}
-
-// Handle Text Import Processing
-if ($action === 'process_text' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $textContent = $_POST['text_content'] ?? '';
-        if (empty(trim($textContent))) {
-            throw new Exception('No text content provided');
-        }
-        
-        // Parse the text content
-        $questions = parseTextContent($textContent);
-        
-        if (empty($questions)) {
-            throw new Exception('No valid questions found in the text content');
-        }
-        
-        // Store parsed questions in session for preview
-        $_SESSION['bulk_upload_questions'] = $questions;
-        
-        echo json_encode([
-            'success' => true, 
-            'message' => 'Text parsed successfully', 
-            'question_count' => count($questions),
-            'redirect' => 'index.php?page=questions&action=upload&step=preview'
-        ]);
-        exit;
-        
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        exit;
-    }
-}
-
-// Handle Bulk Import
-if ($action === 'import_questions' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        if (!isset($_SESSION['bulk_upload_questions']) || empty($_SESSION['bulk_upload_questions'])) {
-            throw new Exception('No questions to import. Please upload a file first.');
-        }
-        
-        $questions = $_SESSION['bulk_upload_questions'];
-        $importResult = importQuestionsToDatabase($questions, $db);
-        
-        // Clear session data
-        unset($_SESSION['bulk_upload_questions']);
-        
-        echo json_encode([
-            'success' => true,
-            'message' => "Successfully imported {$importResult['success_count']} questions",
-            'success_count' => $importResult['success_count'],
-            'error_count' => $importResult['error_count'],
-            'errors' => $importResult['errors'],
-            'redirect' => 'index.php?page=questions&success=bulk_imported&message=' . urlencode("Imported {$importResult['success_count']} questions successfully")
-        ]);
-        exit;
-        
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        exit;
-    }
-}
-
-// Regular page logic continues below...
-
-if (isset($_GET['success'])) {
-    if ($_GET['success'] === 'created') $success = "Question added successfully!";
-    elseif ($_GET['success'] === 'created_continue') $success = "Question added successfully! You can add another question below.";
-    elseif ($_GET['success'] === 'updated') $success = "Question updated successfully!";
-    elseif ($_GET['success'] === 'deleted') $success = "Question deleted successfully!";
-    elseif ($_GET['success'] === 'added_to_test') $success = "Question successfully added to selected test pack!";
-    elseif ($_GET['success'] === 'bulk_added') $success = $_GET['message'] ?? "Questions added to test successfully!";
-    elseif ($_GET['success'] === 'bulk_imported') $success = $_GET['message'] ?? "Questions imported successfully!";
-}
-
-if (isset($_GET['error'])) {
-    if ($_GET['error'] === 'exists') $error = "This question is already added to that test pack.";
-    elseif ($_GET['error'] === 'bulk_add_failed') $error = "Failed to add questions to test pack.";
-    elseif ($_GET['error'] === 'invalid_data') $error = "Invalid data provided.";
-}
-
-// Delete Action
-if ($action === 'delete' && isset($_GET['id'])) {
-    $q_id = intval($_GET['id']);
-    $stmt = $db->prepare("DELETE FROM question_banks WHERE id = ?");
-    $stmt->execute([$q_id]);
-    header("Location: index.php?page=questions&success=deleted");
-    exit;
-}
-
-// Add Question to Test Pack
-if ($action === 'add_question_to_test' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $test_id = intval($_POST['test_id'] ?? 0);
-    $question_id = intval($_POST['question_id'] ?? 0);
-
-    if ($test_id <= 0 || $question_id <= 0) {
-        header("Location: index.php?page=questions&error=invalid_data");
-        exit;
-    }
-
-    try {
-        $stmt = $db->prepare("SELECT COUNT(*) FROM test_questions WHERE test_id = ? AND question_id = ?");
-        $stmt->execute([$test_id, $question_id]);
-        $exists = $stmt->fetchColumn();
-
-        if ($exists) {
-            header("Location: index.php?page=questions&error=exists");
-            exit;
-        }
-
-        $stmt = $db->prepare("INSERT INTO test_questions (test_id, question_id) VALUES (?, ?)");
-        $stmt->execute([$test_id, $question_id]);
-
-        header("Location: index.php?page=questions&success=added_to_test");
-        exit;
-    } catch (Exception $e) {
-        error_log("Add question to test error: " . $e->getMessage());
-        $error = "Failed to add to test: " . $e->getMessage();
-    }
-}
-
-// Bulk Add Questions to Test Pack
-if ($action === 'bulk_add_to_test' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $test_id = intval($_POST['test_id'] ?? 0);
-    $question_ids = $_POST['question_ids'] ?? '';
-    
-    if ($test_id <= 0 || empty($question_ids)) {
-        header("Location: index.php?page=questions&error=invalid_data");
-        exit;
-    }
-    
-    try {
-        $question_ids_array = explode(',', $question_ids);
-        $question_ids_array = array_map('intval', $question_ids_array);
-        $question_ids_array = array_filter($question_ids_array, function($id) { return $id > 0; });
-        
-        if (empty($question_ids_array)) {
-            header("Location: index.php?page=questions&error=invalid_data");
-            exit;
-        }
-        
-        $added_count = 0;
-        $skipped_count = 0;
-        
-        foreach ($question_ids_array as $question_id) {
-            // Check if already exists
-            $stmt = $db->prepare("SELECT COUNT(*) FROM test_questions WHERE test_id = ? AND question_id = ?");
-            $stmt->execute([$test_id, $question_id]);
-            $exists = $stmt->fetchColumn();
-            
-            if (!$exists) {
-                $stmt = $db->prepare("INSERT INTO test_questions (test_id, question_id) VALUES (?, ?)");
-                $stmt->execute([$test_id, $question_id]);
-                $added_count++;
-            } else {
-                $skipped_count++;
-            }
-        }
-        
-        $message = "Added {$added_count} questions to test.";
-        if ($skipped_count > 0) {
-            $message .= " ({$skipped_count} were already in the test)";
-        }
-        
-        header("Location: index.php?page=questions&success=bulk_added&message=" . urlencode($message));
-        exit;
-    } catch (Exception $e) {
-        error_log("Bulk add to test error: " . $e->getMessage());
-        header("Location: index.php?page=questions&error=bulk_add_failed");
-        exit;
-    }
-}
-
-// Fetch question for editing
-if ($action === 'edit' && isset($_GET['id'])) {
-    $question_id = intval($_GET['id']);
-    $stmt = $db->prepare("SELECT * FROM question_banks WHERE id = ?");
-    $stmt->execute([$question_id]);
-    $editQuestion = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$editQuestion) {
-        echo '<div class="alert alert-danger">Question not found.</div>';
-        exit;
-    }
-    $options = json_decode($editQuestion['options'], true);
-}
-
-// Create question - enhanced to support multiple question types and media
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
-    try {
-        $subject = trim($_POST['subject'] ?? '');
-        $new_subject = trim($_POST['new_subject'] ?? '');
-        if (!empty($new_subject)) $subject = $new_subject;
-        if (empty($subject)) throw new Exception("Please select or enter a subject.");
-
-        $topic = $_POST['topic'] ?? '';
-        $subtopic = $_POST['subtopic'] ?? '';
-        $question_type = $_POST['question_type'] ?? 'text_mcq';
-        $question_text = $_POST['question_text'] ?? '';
-        $passage = $_POST['passage'] ?? '';
-        $difficulty = $_POST['difficulty'] ?? 'medium';
-        $exam_year = intval($_POST['exam_year'] ?? date('Y'));
-        $source = $_POST['source'] ?? '';
-        $explanation = $_POST['explanation'] ?? '';
-        $is_public = isset($_POST['is_public']) ? 1 : 0;
-        $created_at = date('Y-m-d H:i:s');
-
-        // Build a flexible options structure that will be JSON encoded and stored in the options column
-        $options_arr = ['type' => $question_type];
-
-        // Common option types
-        if (in_array($question_type, ['text_mcq', 'image_mcq', 'multi_correct'])) {
-            $options_arr['A'] = trim($_POST['option_a'] ?? '');
-            $options_arr['B'] = trim($_POST['option_b'] ?? '');
-            $options_arr['C'] = trim($_POST['option_c'] ?? '');
-            $options_arr['D'] = trim($_POST['option_d'] ?? '');
-            // Support Option E
-            $options_arr['E'] = trim($_POST['option_e'] ?? '');
-        }
-
-        // Passage-based
-        if ($question_type === 'passage') {
-            $options_arr['passage'] = $passage;
-        }
-
-        // Fill in the blanks - answers stored in options->blanks as array or comma separated
-        if ($question_type === 'fill_blank') {
-            $blanks = $_POST['blanks'] ?? '';
-            $options_arr['blanks'] = array_map('trim', array_filter(array_map('strval', explode('|', $blanks))));
-        }
-
-        // Match the following - expect pair lists
-        if ($question_type === 'match') {
-            $left = $_POST['match_left'] ?? [];
-            $right = $_POST['match_right'] ?? [];
-            $pairs = [];
-            $countPairs = max(count($left), count($right));
-            for ($i = 0; $i < $countPairs; $i++) {
-                $pairs[] = ['left' => $left[$i] ?? '', 'right' => $right[$i] ?? ''];
-            }
-            $options_arr['pairs'] = $pairs;
-        }
-
-        // Assertion & Reasoning
-        if ($question_type === 'assertion') {
-            $options_arr['assertion'] = $_POST['assertion'] ?? '';
-            $options_arr['reason'] = $_POST['reason'] ?? '';
-        }
-
-        // Numerical
-        if ($question_type === 'numerical') {
-            $options_arr['numeric_answer'] = trim($_POST['numeric_answer'] ?? '');
-        }
-
-        // True/False doesn't need options
-
-        // Multi-select correct answers
-        if ($question_type === 'multi_correct') {
-            $correct_answers = $_POST['correct_answers'] ?? [];
-            $correct_answer = implode(',', array_map('trim', $correct_answers));
-        } else {
-            $correct_answer = $_POST['correct_answer'] ?? '';
-        }
-
-        // Handle media uploads (image / audio) - store public relative path in options
-        $uploadDir = __DIR__ . '/../images/';
-        if (!is_dir($uploadDir)) {
-            @mkdir($uploadDir, 0755, true);
-        }
-
-        if (!empty($_FILES['image']['name'])) {
-            $img = $_FILES['image'];
-            if ($img['error'] === UPLOAD_ERR_OK) {
-                $ext = pathinfo($img['name'], PATHINFO_EXTENSION);
-                $filename = uniqid('qimg_') . '.' . $ext;
-                $dst = $uploadDir . $filename;
-                if (move_uploaded_file($img['tmp_name'], $dst)) {
-                    $options_arr['image'] = 'images/' . $filename;
-                }
-            }
-        }
-
-        if (!empty($_FILES['audio']['name'])) {
-            $aud = $_FILES['audio'];
-            if ($aud['error'] === UPLOAD_ERR_OK) {
-                $ext = pathinfo($aud['name'], PATHINFO_EXTENSION);
-                $filename = uniqid('qaud_') . '.' . $ext;
-                $dst = $uploadDir . $filename;
-                if (move_uploaded_file($aud['tmp_name'], $dst)) {
-                    $options_arr['audio'] = 'images/' . $filename; // reuse images folder for uploaded media
-                }
-            }
-        }
-
-        // Per-option image uploads (option A..D). Input names: option_a_image, option_b_image, option_c_image, option_d_image
-        $optionImageMap = [
-            'option_a_image' => 'A_image',
-            'option_b_image' => 'B_image',
-            'option_c_image' => 'C_image',
-            'option_d_image' => 'D_image',
-            'option_e_image' => 'E_image',
-        ];
-
-        foreach ($optionImageMap as $inputName => $optKey) {
-            if (!empty($_FILES[$inputName]['name'])) {
-                $f = $_FILES[$inputName];
-                if ($f['error'] === UPLOAD_ERR_OK) {
-                    $ext = pathinfo($f['name'], PATHINFO_EXTENSION);
-                    $filename = uniqid('optimg_') . '.' . $ext;
-                    $dst = $uploadDir . $filename;
-                    if (move_uploaded_file($f['tmp_name'], $dst)) {
-                        $options_arr[$optKey] = 'images/' . $filename;
-                    }
-                }
-            }
-        }
-
-        // If passage present, include it
-        if (!empty($passage) && $question_type !== 'passage') {
-            // keep passage in options for context if provided
-            $options_arr['passage'] = $passage;
-        }
-
-        // Multilingual support: collect per-language fields and store under options->i18n
-        $langs = ['en' => 'English', 'ta' => 'Tamil', 'hi' => 'Hindi'];
-        $i18n = [];
-        foreach ($langs as $code => $label) {
-            $qt_name = 'question_text_' . $code;
-            $i18n[$code] = [
-                'question_text' => $_POST[$qt_name] ?? ''
-            ];
-            // options per language
-            foreach (['A','B','C','D','E'] as $k) {
-                $opt_name = 'option_' . strtolower($k) . '_' . $code;
-                $i18n[$code]['options'][$k] = $_POST[$opt_name] ?? '';
-            }
-        }
-        $options_arr['i18n'] = $i18n;
-
-        // Prepare final options JSON
-        $options_json = json_encode($options_arr);
-
-        $stmt = $db->prepare("INSERT INTO question_banks (title, subject, topic, subtopic, question_text, options, correct_answer, explanation, difficulty, exam_year, source, is_public, institute_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            '', $subject, $topic, $subtopic, $question_text, $options_json, $correct_answer, $explanation, $difficulty, $exam_year, $source, $is_public, null, $created_at
-        ]);
-
-        // Check if "Save & Add Another" was clicked
-        $save_and_add_another = isset($_POST['save_and_add_another']) && $_POST['save_and_add_another'] === '1';
-        
-        if ($save_and_add_another) {
-            header("Location: index.php?page=questions&action=create&success=created_continue");
-        } else {
-            header("Location: index.php?page=questions&success=created");
-        }
-        exit;
-    } catch (Exception $e) {
-        $error = "Error: " . $e->getMessage();
-    }
-}
-
 // Update question
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'edit' && isset($_GET['id'])) {
-    try {
-        $question_id = intval($_GET['id']);
-        $subject = trim($_POST['subject'] ?? '');
-        $new_subject = trim($_POST['new_subject'] ?? '');
-        if (!empty($new_subject)) $subject = $new_subject;
-        if (empty($subject)) throw new Exception("Please select or enter a subject.");
-
-        $topic = $_POST['topic'] ?? '';
-        $subtopic = $_POST['subtopic'] ?? '';
-        $question_text = $_POST['question_text'] ?? '';
-        $options = json_encode([
-            'A' => $_POST['option_a'] ?? '',
-            'B' => $_POST['option_b'] ?? '',
-            'C' => $_POST['option_c'] ?? '',
-            'D' => $_POST['option_d'] ?? ''
-        ]);
-        $correct_answer = $_POST['correct_answer'] ?? '';
-        $difficulty = $_POST['difficulty'] ?? 'medium';
-        $exam_year = intval($_POST['exam_year'] ?? 2024);
-        $source = $_POST['source'] ?? '';
-        $explanation = $_POST['explanation'] ?? '';
-        $is_public = isset($_POST['is_public']) ? 1 : 0;
-
-        $stmt = $db->prepare("UPDATE question_banks SET subject = ?, topic = ?, subtopic = ?, question_text = ?, options = ?, correct_answer = ?, explanation = ?, difficulty = ?, exam_year = ?, source = ?, is_public = ? WHERE id = ?");
-        $stmt->execute([
-            $subject,
-            $topic,
-            $subtopic,
-            $question_text,
-            $options,
-            $correct_answer,
-            $explanation,
-            $difficulty,
-            $exam_year,
-            $source,
-            $is_public,
-            $question_id
-        ]);
-
-        header("Location: index.php?page=questions&success=updated");
-        exit;
-
-    } catch (Exception $e) {
-        $error = "Error updating: " . $e->getMessage();
-    }
-}
+// NOTE: Edit/create handlers were moved to a centralized controller file
+// `tms/pages/questions/controllers/forms.php` which runs before HTML output.
+// Keeping the inline handler here would risk duplicating updates and
+// overwriting richer shapes (images, i18n, option objects). The controller
+// handles merging of i18n/options and media uploads.
 
 // Fetch subjects and topics
 $allSubjects = $db->query("SELECT DISTINCT subject FROM question_banks WHERE subject IS NOT NULL AND subject != ''")->fetchAll(PDO::FETCH_COLUMN);
@@ -643,21 +52,57 @@ if ($user['role'] === 'super_admin') {
     $questions = [];
 }
 
+// If editing, try to fetch the question early so templates can access it
+if ($action === 'edit' && isset($_GET['id'])) {
+    $qid = intval($_GET['id']);
+    if ($qid > 0) {
+        $stmt = $db->prepare("SELECT * FROM question_banks WHERE id = ?");
+        $stmt->execute([$qid]);
+        $editQuestion = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($editQuestion) {
+            // Ensure options are available as decoded array for templates
+            $editQuestion['options'] = is_string($editQuestion['options']) ? json_decode($editQuestion['options'], true) : ($editQuestion['options'] ?? []);
+        }
+    }
+}
+
 // Helper Functions for Bulk Upload
 
 // Include simple bulk upload functions
 require_once dirname(__DIR__) . '/bulk_upload_simple.php';
 
+// Provide small helper template generators if the detailed helpers are not available
+if (!function_exists('createSimpleCSVTemplate')) {
+    function createSimpleCSVTemplate()
+    {
+        $lines = [];
+        $lines[] = "question_text,option_a,option_b,option_c,option_d,correct_answer,subject,topic,exam_year,source";
+        $lines[] = 'Sample question text,Option A,Option B,Option C,Option D,A,General Knowledge,Sample Topic,' . date('Y') . ',Sample Exam';
+        return implode("\n", $lines) . "\n";
+    }
+}
+
+if (!function_exists('createSimpleExcelTemplate')) {
+    // For simplicity, provide the same CSV content for Excel download as well
+    function createSimpleExcelTemplate()
+    {
+        return createSimpleCSVTemplate();
+    }
+}
+
 // Use the simple functions
-function createExcelTemplate() {
+function createExcelTemplate()
+{
     return createSimpleExcelTemplate();
 }
 
-function createCSVTemplate() {
+function createCSVTemplate()
+{
     return createSimpleCSVTemplate();
 }
 
-function parseUploadedFile($uploadedFile, $fileExtension) {
+function parseUploadedFile($uploadedFile, $fileExtension)
+{
     $questions = [];
     if ($fileExtension === 'csv') {
         $questions = parseSimpleCSV($uploadedFile['tmp_name']);
@@ -668,7 +113,8 @@ function parseUploadedFile($uploadedFile, $fileExtension) {
     return $questions;
 }
 
-function parseTextContent($textContent) {
+function parseTextContent($textContent)
+{
     $questions = [];
     $lines = explode("\n", $textContent);
     $currentQuestion = null;
@@ -677,7 +123,8 @@ function parseTextContent($textContent) {
 
     foreach ($lines as $line) {
         $line = trim($line);
-        if (empty($line)) continue;
+        if (empty($line))
+            continue;
 
         // Check if this is a new question (starts with number)
         if (preg_match('/^(\d+[\.\)]\s*|Q\d*[\.\)]\s*)/i', $line)) {
@@ -712,10 +159,18 @@ function parseTextContent($textContent) {
             $optionText = trim(preg_replace('/^[A-D][\.\)]\s*/i', '', $line));
 
             switch ($optionLetter) {
-                case 'A': $currentQuestion['option_a'] = $optionText; break;
-                case 'B': $currentQuestion['option_b'] = $optionText; break;
-                case 'C': $currentQuestion['option_c'] = $optionText; break;
-                case 'D': $currentQuestion['option_d'] = $optionText; break;
+                case 'A':
+                    $currentQuestion['option_a'] = $optionText;
+                    break;
+                case 'B':
+                    $currentQuestion['option_b'] = $optionText;
+                    break;
+                case 'C':
+                    $currentQuestion['option_c'] = $optionText;
+                    break;
+                case 'D':
+                    $currentQuestion['option_d'] = $optionText;
+                    break;
             }
             $collectingQuestion = false;
         }
@@ -733,8 +188,10 @@ function parseTextContent($textContent) {
             $collectingQuestion = false;
         }
         // If we're still collecting question text and this is not an option/answer line
-        elseif ($collectingQuestion && $currentQuestion && !preg_match('/^[A-D][\.\)]/i', $line) &&
-                !preg_match('/^(Answer|Explanation)/i', $line)) {
+        elseif (
+            $collectingQuestion && $currentQuestion && !preg_match('/^[A-D][\.\)]/i', $line) &&
+            !preg_match('/^(Answer|Explanation)/i', $line)
+        ) {
             // Continue building the question text for multi-line questions
             $currentQuestion['question_text'] .= "\n" . $line;
         }
@@ -775,1775 +232,2905 @@ function parseTextContent($textContent) {
 </div>
 
 <?php if (isset($success)): ?>
-<div class="alert alert-success alert-dismissible fade show" role="alert">
-    <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($success) ?>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($success) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
 <?php endif; ?>
 
 <?php if (isset($error)): ?>
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-    <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($error) ?>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($error) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
 <?php endif; ?>
 
 <?php if ($action === 'list'): ?>
-<!-- Question Bank Dashboard -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="stats-card primary">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="stats-number"><?= count($questions) ?></div>
-                    <div class="stats-label">Total Questions</div>
-                </div>
-                <i class="fas fa-question-circle fa-2x opacity-75"></i>
-            </div>
-        </div>
-    </div>
 
-    <div class="col-md-3">
-        <div class="stats-card success">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="stats-number">
-                        <?= count(array_filter($questions, fn($q) => $q['is_public'])) ?></div>
-                    <div class="stats-label">Public Questions</div>
-                </div>
-                <i class="fas fa-globe fa-2x opacity-75"></i>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="stats-card warning">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="stats-number">
-                        <?= count(array_unique(array_column($questions, 'subject'))) ?></div>
-                    <div class="stats-label">Subjects</div>
-                </div>
-                <i class="fas fa-book fa-2x opacity-75"></i>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="stats-card danger">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="stats-number">
-                        <?= count(array_unique(array_column($questions, 'topic'))) ?></div>
-                    <div class="stats-label">Topics</div>
-                </div>
-                <i class="fas fa-tags fa-2x opacity-75"></i>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Filters and Search -->
-<div class="card mb-4">
-    <div class="card-body">
-        <form method="GET" action="index.php">
-            <input type="hidden" name="page" value="questions">
-            <div class="row align-items-end">
-
-                <div class="col-md-2">
-                    <label class="form-label">Exam (Source)</label>
-                    <select class="form-select" name="source">
-                        <option value="">All Exams</option>
-                        <?php foreach ($allSources as $source): ?>
-                        <option value="<?= htmlspecialchars($source) ?>"
-                            <?= ($_GET['source'] ?? '') == $source ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($source) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Subject</label>
-                    <select class="form-select" name="subject">
-                        <option value="">All Subjects</option>
-                        <?php foreach ($allSubjects as $subject): ?>
-                        <option value="<?= htmlspecialchars($subject) ?>"
-                            <?= ($_GET['subject'] ?? '') == $subject ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($subject) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Topic</label>
-                    <select class="form-select" name="topic">
-                        <option value="">All Topics</option>
-                        <?php foreach ($allTopics as $topic): ?>
-                        <option value="<?= htmlspecialchars($topic) ?>"
-                            <?= ($_GET['topic'] ?? '') == $topic ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($topic) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-
-                <div class="col-md-2">
-                    <label class="form-label">Difficulty</label>
-                    <select class="form-select" name="difficulty">
-                        <option value="">All Levels</option>
-                        <option value="easy" <?= ($_GET['difficulty'] ?? '') == 'easy' ? 'selected' : '' ?>>Easy
-                        </option>
-                        <option value="medium" <?= ($_GET['difficulty'] ?? '') == 'medium' ? 'selected' : '' ?>>Medium
-                        </option>
-                        <option value="hard" <?= ($_GET['difficulty'] ?? '') == 'hard' ? 'selected' : '' ?>>Hard
-                        </option>
-                    </select>
-                </div>
-
-                <div class="col-md-3">
-                    <label class="form-label">Search Text</label>
-                    <input type="text" class="form-control" name="search_text"
-                        value="<?= htmlspecialchars($_GET['search_text'] ?? '') ?>" placeholder="Search questions...">
-                </div>
-
-                <div class="col-md-1">
-                    <button class="btn btn-primary w-100" type="submit">
-                        <i class="fas fa-search"></i>
-                    </button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-
-
-
-<!-- Questions List -->
-<div class="row">
-    <?php foreach ($questions as $question): ?>
-    <div class="col-12 mb-3">
-        <div class="question-card card <?= $question['difficulty'] ?>">
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="d-flex align-items-start mb-2">
-                            <div class="mb-3">
-                                <label class="form-label small">Option A</label>
-                                <input class="form-control mb-1 lang-input" name="option_a_en"
-                                    placeholder="Option A (English)">
-                                <input class="form-control mb-1 lang-input" name="option_a_ta" style="display:none;"
-                                    placeholder="Option A (Tamil)">
-                                <input class="form-control mb-1 lang-input" name="option_a_hi" style="display:none;"
-                                    placeholder="Option A (Hindi)">
-                                <input type="file" class="form-control form-control-sm option-image-input"
-                                    name="option_a_image" accept="image/*" />
-                                class="badge
-                                bg-<?= $question['difficulty'] === 'easy' ? 'success' : ($question['difficulty'] === 'medium' ? 'warning' : 'danger') ?>">
-                                <?= ucfirst($question['difficulty']) ?>
-                                </span>
-                            </div>
-                        </div>
-
-                        <h6 class="question-text">
-                            <?= htmlspecialchars($question['question_text']) ?></h6>
-
-                        <div class="question-meta mt-2">
-                            <small class="text-muted">
-                                <i class="fas fa-calendar me-1"></i><?= $question['exam_year'] ?>
-                                <i class="fas fa-building ms-3 me-1"></i><?= htmlspecialchars($question['source']) ?>
-                                <?php if ($question['is_public']): ?>
-                                <i class="fas fa-globe ms-3 me-1"></i>Public
-                                <?php endif; ?>
-                            </small>
-                        </div>
-                    </div>
-
-                    <div class="col-md-4 text-end">
-                        <div class="d-flex justify-content-end align-items-center gap-2">
-
-                            <!-- Selection Checkbox -->
-                            <div class="form-check mb-0">
-                                <label class="form-check-label" for="select_<?= $question['id'] ?>">Select</label>
-                                <input class="form-check-input" type="checkbox" value="<?= $question['id'] ?>"
-                                    id="select_<?= $question['id'] ?>">
-                            </div>
-
-                            <!-- Preview -->
-                            <button class="btn btn-sm btn-outline-success view-details-btn" title="View Details"
-                                data-id="<?= $question['id'] ?>"
-                                data-subject="<?= htmlspecialchars($question['subject']) ?>"
-                                data-topic="<?= htmlspecialchars($question['topic']) ?>"
-                                data-subtopic="<?= htmlspecialchars($question['subtopic']) ?>"
-                                data-question_text="<?= htmlspecialchars($question['question_text']) ?>"
-                                data-options="<?= htmlspecialchars($question['options']) ?>"
-                                data-correct_answer="<?= htmlspecialchars($question['correct_answer']) ?>"
-                                data-explanation="<?= htmlspecialchars($question['explanation']) ?>"
-                                data-difficulty="<?= htmlspecialchars($question['difficulty']) ?>"
-                                data-exam_year="<?= htmlspecialchars($question['exam_year']) ?>"
-                                data-source="<?= htmlspecialchars($question['source']) ?>"
-                                data-is_public="<?= $question['is_public'] ? 'Yes' : 'No' ?>">
-                                <i class="fas fa-eye"></i>
-                            </button>
-
-                            <!-- Edit -->
-                            <button class="btn btn-sm btn-outline-primary" title="Edit"
-                                onclick="window.location.href='index.php?page=questions&action=edit&id=<?= $question['id'] ?>'">
-                                <i class="fas fa-edit"></i>
-                            </button>
-
-                            <!-- Add to Test -->
-                            <button class="btn btn-sm btn-outline-info add-to-test-btn" title="Add to Test Pack"
-                                data-question-id="<?= $question['id'] ?>"
-                                data-question-label="<?= htmlspecialchars($question['question_text']) ?>"
-                                data-bs-toggle="modal" data-bs-target="#addToTestModal">
-                                <i class="fas fa-plus"></i>
-                            </button>
-
-                            <!-- Delete -->
-                            <button class="btn btn-sm btn-outline-danger" title="Delete"
-                                onclick="if(confirm('Are you sure?')) { window.location.href='index.php?page=questions&action=delete&id=<?= $question['id'] ?>' }">
-                                <i class="fas fa-trash"></i>
-                            </button>
-
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endforeach; ?>
-</div>
-
-<!-- Modal: Add Question to Test -->
-<div class="modal fade" id="addToTestModal" tabindex="-1" aria-labelledby="addToTestModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <form method="POST" action="index.php?page=questions&action=add_question_to_test">
-            <input type="hidden" name="question_id" id="modalQuestionId">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add Question to Test Pack</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="fw-bold" id="modalQuestionText"></p>
-                    <div class="mb-3">
-                        <label class="form-label">Select Test Pack</label>
-                        <select class="form-select" name="test_id" required>
-                            <?php
-              $packs = $db->query("SELECT id, title FROM test_packs WHERE is_active = 1 AND is_visible_to_students = 1 ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
-              foreach ($packs as $pack) {
-                  echo "<option value=\"{$pack['id']}\">" . htmlspecialchars($pack['title']) . "</option>";
-              }
-              ?>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-primary">Add to Test</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Question Preview Modal -->
-<div class="modal fade" id="questionPreviewModal" tabindex="-1" aria-labelledby="questionPreviewModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="questionPreviewModalLabel">Question Preview</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="preview-question-content">
-                    <!-- Content will be loaded by JS -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-// Helper to decode options JSON if present
-function renderOptions(optionsJson) {
-    let html = '';
-    try {
-        const options = JSON.parse(optionsJson || '{}');
-        const keys = ['A', 'B', 'C', 'D', 'E'];
-
-        // If options look like numeric sequences (e.g. "2 3 4 1"), render as a matrix
-        const first = options[keys[0]] || '';
-        const looksLikeSequence = typeof first === 'string' && /^\s*\d+(\s+\d+)+\s*$/.test(first);
-        if (looksLikeSequence) {
-            // build rows: header (a)(b)(c)(d) and then each option as a row
-            const cols = (first.trim().split(/\s+/)).length;
-            html += '<table class="table table-sm table-bordered mb-2"><thead><tr><th></th>';
-            for (let i = 0; i < cols; i++) html += `<th>(${['a','b','c','d','e'][i] || i+1})</th>`;
-            html += '</tr></thead><tbody>';
-
-            for (const k of keys) {
-                if (options[k]) {
-                    const parts = options[k].toString().trim().split(/\s+/);
-                    html += `<tr><th style="width:60px">${k}</th>`;
-                    for (let i = 0; i < cols; i++) {
-                        html += `<td>${parts[i] || ''}</td>`;
-                    }
-                    html += '</tr>';
-                }
-            }
-            html += '</tbody></table>';
-            return html;
+    <style>
+        /* Multilingual form improvements */
+        .lang-block {
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
         }
 
-        // Fallback: render list A..E and show text or image if present
-        html += '<ul class="list-group mb-2">';
-        for (const key of keys) {
-            if (options[key] || options[`${key}_image`] || options[`${key} _image`] || options[`${key}_img`]) {
-                let content = options[key] || '';
-                // if image path exists
-                if (options[`${key}_image`]) {
-                    content =
-                        `<div><img src="${options[`${key}_image`]}" style="max-width:200px; max-height:120px;" alt="${key}"></div>` +
-                        content;
-                } else if (options[`${key} _image`]) {
-                    content =
-                        `<div><img src="${options[`${key} _image`]}" style="max-width:200px; max-height:120px;" alt="${key}"></div>` +
-                        content;
-                } else if (options[`${key}_img`]) {
-                    content =
-                        `<div><img src="${options[`${key}_img`]}" style="max-width:200px; max-height:120px;" alt="${key}"></div>` +
-                        content;
-                }
-                html += `<li class="list-group-item"><strong>${key}.</strong> ${content}</li>`;
-            }
+        .lang-block.active {
+            border-left: 3px solid #007bff !important;
+            padding-left: 15px !important;
+            background-color: #f8f9fa !important;
         }
-        html += '</ul>';
-    } catch (e) {}
-    return html;
-}
 
-// Preview button click handler (converted to vanilla JavaScript)
-document.addEventListener('click', function(e) {
-    if (e.target.closest('.preview-btn')) {
-        const btn = e.target.closest('.preview-btn');
-        // This button uses data attributes, so we can use the view-details-btn logic
-        // Since preview-btn and view-details-btn should work the same way
-        const questionData = {
-            subject: btn.getAttribute('data-subject'),
-            topic: btn.getAttribute('data-topic'),
-            subtopic: btn.getAttribute('data-subtopic'),
-            question_text: btn.getAttribute('data-question_text'),
-            options: btn.getAttribute('data-options'),
-            correct_answer: btn.getAttribute('data-correct_answer'),
-            explanation: btn.getAttribute('data-explanation'),
-            difficulty: btn.getAttribute('data-difficulty'),
-            exam_year: btn.getAttribute('data-exam_year'),
-            source: btn.getAttribute('data-source'),
-            is_public: btn.getAttribute('data-is_public')
-        };
+        .lang-input {
+            margin-bottom: 0.5rem !important;
+            transition: border-color 0.3s ease;
+        }
 
-        let html = '';
-        html +=
-            `<div><span class='badge bg-primary'>${questionData.subject}</span> <span class='badge bg-secondary'>${questionData.topic}</span> <span class='badge bg-${questionData.difficulty === 'easy' ? 'success' : (questionData.difficulty === 'medium' ? 'warning' : 'danger')}'>${questionData.difficulty.charAt(0).toUpperCase() + questionData.difficulty.slice(1)}</span></div>`;
-        html += `<h5 class='mt-3'>${questionData.question_text}</h5>`;
-        // if question-level image/audio present in options JSON, render
-        try {
-            const opts = JSON.parse(questionData.options || '{}');
-            if (opts.image) {
-                html +=
-                    `<div class="mb-2"><img src="${opts.image}" style="max-width:100%; height:auto;"></div>`;
-            }
-            if (opts.audio) {
-                html += `<div class="mb-2"><audio controls src="${opts.audio}"></audio></div>`;
-            }
-        } catch (e) {}
-        html += renderOptions(questionData.options);
-        html +=
-            `<div class='mb-2'><strong>Correct Answer:</strong> ${questionData.correct_answer}</div>`;
-        html +=
-            `<div class='mb-2'><strong>Explanation:</strong> ${questionData.explanation || '-'}</div>`;
-        html +=
-            `<div class='mb-2'><strong>Exam Year:</strong> ${questionData.exam_year} <strong>Source:</strong> ${questionData.source}</div>`;
-        html +=
-            `<div class='mb-2'><strong>Subtopic:</strong> ${questionData.subtopic || '-'}</div>`;
-        html +=
-            `<div class='mb-2'><strong>Public:</strong> ${questionData.is_public}</div>`;
+        .lang-input:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
 
-        document.getElementById('preview-question-content').innerHTML = html;
-        var modal = new bootstrap.Modal(document.getElementById('questionPreviewModal'));
-        modal.show();
-    }
-});
-</script>
+        /* Option language inputs grouping */
+        .col-6 .lang-input,
+        .col-12 .lang-input {
+            margin-bottom: 0.4rem;
+            font-size: 0.9rem;
+        }
 
+        /* Language switcher improvements */
+        .btn-group .lang-btn {
+            transition: all 0.3s ease;
+        }
 
+        .btn-group .lang-btn.active {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
 
-<!-- Bulk Actions -->
-<div class="card mb-4">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <div class="form-check d-inline-block me-3">
-                    <input class="form-check-input" type="checkbox" id="select-all">
-                    <label class="form-check-label" for="select-all">Select All</label>
-                </div>
-                <span class="text-muted">Selected: <span id="selected-count">0</span>
-                    questions</span>
-            </div>
-            <div>
-                <button class="btn btn-outline-primary me-2" id="bulk-duplicate-btn" type="button">
-                    <i class="fas fa-copy me-2"></i>Duplicate Selected
-                </button>
-                <button class="btn btn-outline-success me-2" id="bulk-add-to-test-btn" type="button"
-                    data-bs-toggle="modal" data-bs-target="#bulkAddToTestModal">
-                    <i class="fas fa-plus me-2"></i>Add to Test
-                </button>
-                <button class="btn btn-outline-danger" id="bulk-delete-btn" type="button">
-                    <i class="fas fa-trash me-2"></i>Delete Selected
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+        /* Subtle borders for different languages */
+        input[name*="_en"] {
+            border-left: 3px solid #28a745;
+        }
 
-<!-- Bulk Add to Test Modal -->
-<div class="modal fade" id="bulkAddToTestModal" tabindex="-1" aria-labelledby="bulkAddToTestModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog">
-        <form method="POST" action="index.php?page=questions&action=bulk_add_to_test" id="bulk-add-to-test-form">
-            <input type="hidden" name="question_ids" id="bulkQuestionIds">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add Selected Questions to Test Pack</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Select Test Pack</label>
-                        <select class="form-select" name="test_id" required>
-                            <?php
-                            $packs = $db->query("SELECT id, title FROM test_packs WHERE is_active = 1 AND is_visible_to_students = 1 ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
-                            foreach ($packs as $pack) {
-                                echo "<option value=\"{$pack['id']}\">" . htmlspecialchars($pack['title']) . "</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
+        input[name*="_ta"] {
+            border-left: 3px solid #fd7e14;
+        }
+
+        input[name*="_hi"] {
+            border-left: 3px solid #6f42c1;
+        }
+
+        textarea[name*="_en"] {
+            border-left: 3px solid #28a745;
+        }
+
+        textarea[name*="_ta"] {
+            border-left: 3px solid #fd7e14;
+        }
+
+        textarea[name*="_hi"] {
+            border-left: 3px solid #6f42c1;
+        }
+    </style>
+
+    <!-- Question Bank Dashboard -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card primary">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <small class="text-muted">You are adding <span id="bulk-selected-count">0</span>
-                            questions.</small>
+                        <div class="stats-number"><?= count($questions) ?></div>
+                        <div class="stats-label">Total Questions</div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-primary">Add to Test</button>
+                    <i class="fas fa-question-circle fa-2x opacity-75"></i>
                 </div>
             </div>
-        </form>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stats-card success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number">
+                            <?= count(array_filter($questions, fn($q) => $q['is_public'])) ?>
+                        </div>
+                        <div class="stats-label">Public Questions</div>
+                    </div>
+                    <i class="fas fa-globe fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stats-card warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number">
+                            <?= count(array_unique(array_column($questions, 'subject'))) ?>
+                        </div>
+                        <div class="stats-label">Subjects</div>
+                    </div>
+                    <i class="fas fa-book fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stats-card danger">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number">
+                            <?= count(array_unique(array_column($questions, 'topic'))) ?>
+                        </div>
+                        <div class="stats-label">Topics</div>
+                    </div>
+                    <i class="fas fa-tags fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
 
-<script>
-// Track selected checkboxes
-function getSelectedQuestionIds() {
-    const selected = Array.from(document.querySelectorAll(
-            '.form-check-input[type="checkbox"]:checked:not(#select-all)'))
-        .map(cb => cb.value);
-    console.log('Selected question IDs:', selected);
-    return selected;
-}
+    <!-- Filters and Search -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="index.php">
+                <input type="hidden" name="page" value="questions">
+                <div class="row align-items-end">
 
-function updateSelectedCount() {
-    const count = getSelectedQuestionIds().length;
-    document.getElementById('selected-count').textContent = count;
-
-    // Update select-all checkbox state
-    const totalCheckboxes = document.querySelectorAll(
-        '.form-check-input[type="checkbox"]:not(#select-all)').length;
-    const selectAllCheckbox = document.getElementById('select-all');
-    if (count === 0) {
-        selectAllCheckbox.indeterminate = false;
-        selectAllCheckbox.checked = false;
-    } else if (count === totalCheckboxes) {
-        selectAllCheckbox.indeterminate = false;
-        selectAllCheckbox.checked = true;
-    } else {
-        selectAllCheckbox.indeterminate = true;
-        selectAllCheckbox.checked = false;
-    }
-}
-
-// Select All functionality
-document.getElementById('select-all').addEventListener('change', function() {
-    const isChecked = this.checked;
-    document.querySelectorAll('.form-check-input[type="checkbox"]:not(#select-all)')
-        .forEach(cb => {
-            cb.checked = isChecked;
-        });
-    updateSelectedCount();
-});
-
-// Update count on checkbox change
-document.querySelectorAll('.form-check-input[type="checkbox"]:not(#select-all)').forEach(cb => {
-    cb.addEventListener('change', updateSelectedCount);
-});
-
-// Bulk Duplicate
-document.getElementById('bulk-duplicate-btn').addEventListener('click', function() {
-    console.log('Duplicate button clicked');
-    const ids = getSelectedQuestionIds();
-    console.log('Selected IDs for duplication:', ids);
-
-    if (ids.length === 0) {
-        alert('Please select at least one question to duplicate.');
-        return;
-    }
-    if (!confirm('Duplicate selected questions?')) return;
-
-    console.log('Sending duplicate request with IDs:', ids);
-
-    // Show loading state
-    this.disabled = true;
-    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Duplicating...';
-
-    // Send AJAX request to duplicate
-    fetch('index.php?page=questions&action=bulk_duplicate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                question_ids: ids
-            })
-        })
-        .then(res => {
-            console.log('Response status:', res.status);
-            if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-        })
-        .then(data => {
-            console.log('Response data:', data);
-            if (data.success) {
-                alert('Questions duplicated successfully!');
-                window.location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Could not duplicate.'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Network error: ' + error.message);
-        })
-        .finally(() => {
-            // Reset button state
-            this.disabled = false;
-            this.innerHTML = '<i class="fas fa-copy me-2"></i>Duplicate Selected';
-        });
-});
-
-// Bulk Add to Test
-document.getElementById('bulk-add-to-test-btn').addEventListener('click', function(e) {
-    const ids = getSelectedQuestionIds();
-    if (ids.length === 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        alert('Please select at least one question to add to test.');
-        return false;
-    }
-    document.getElementById('bulkQuestionIds').value = ids.join(',');
-    document.getElementById('bulk-selected-count').textContent = ids.length;
-});
-
-// Bulk Delete
-document.getElementById('bulk-delete-btn').addEventListener('click', function() {
-    console.log('Bulk delete button clicked');
-    const ids = getSelectedQuestionIds();
-    console.log('Selected question IDs:', ids);
-    if (ids.length === 0) {
-        alert('Please select at least one question to delete.');
-        return;
-    }
-    if (!confirm('Are you sure you want to delete selected questions?')) return;
-
-    console.log('Sending delete request...');
-
-    // Show loading state
-    this.disabled = true;
-    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
-
-    // Send AJAX request to dedicated endpoint
-    fetch('index.php?page=questions&action=bulk_delete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                question_ids: ids
-            })
-        })
-        .then(res => {
-            console.log('Delete response status:', res.status);
-            if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-        })
-        .then(data => {
-            console.log('Delete parsed JSON:', data);
-            if (data.success) {
-                alert('Questions deleted successfully!');
-                window.location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Could not delete.'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Network error: ' + error.message);
-        })
-        .finally(() => {
-            // Reset button state
-            this.disabled = false;
-            this.innerHTML = '<i class="fas fa-trash me-2"></i>Delete Selected';
-        });
-});
-</script>
-
-<?php elseif ($action === 'create'): ?>
-<!-- Create Question Form (enhanced for multiple offline-capable types) -->
-<div class="row justify-content-center">
-    <div class="col-lg-10">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Add New Question</h5>
-            </div>
-            <div class="card-body">
-                <form method="POST" class="needs-validation" novalidate id="question-form"
-                    enctype="multipart/form-data">
-                    <input type="hidden" name="save_and_add_another" id="save_and_add_another" value="0">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Subject</label>
-                            <select class="form-select" name="subject">
-                                <option value="">Select Subject</option>
-                                <?php foreach ($allSubjects as $s): ?>
-                                <option value="<?= htmlspecialchars($s) ?>"><?= htmlspecialchars($s) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <div class="form-text">Or add below</div>
-                            <input type="text" class="form-control mt-2" name="new_subject"
-                                placeholder="New subject (optional)">
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">Topic</label>
-                            <input class="form-control" name="topic" placeholder="Topic">
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">Question Type</label>
-                            <select class="form-select" id="question-type" name="question_type">
-                                <option value="text_mcq">Text-Based MCQ (Single Correct)</option>
-                                <option value="image_mcq">Image-Based MCQ</option>
-                                <option value="passage">Passage-Based / Comprehension</option>
-                                <option value="fill_blank">Fill in the Blanks</option>
-                                <option value="match">Match the Following</option>
-                                <option value="assertion">Assertion & Reasoning</option>
-                                <option value="true_false">True / False</option>
-                                <option value="numerical">Numerical</option>
-                                <option value="multi_correct">Multiple Correct Answers (Multi-select)</option>
-                                <option value="audio">Audio-Based Question</option>
-                            </select>
-                        </div>
-
-                        <div class="col-12" id="passage-block" style="display:none;">
-                            <label class="form-label">Passage</label>
-                            <textarea class="form-control" name="passage" rows="4"></textarea>
-                        </div>
-
-                        <!-- Language switcher -->
-                        <div class="col-12 mb-2">
-                            <div class="btn-group" role="group" aria-label="Language switcher">
-                                <button type="button" class="btn btn-outline-primary lang-btn active"
-                                    data-lang="en">English</button>
-                                <button type="button" class="btn btn-outline-secondary lang-btn"
-                                    data-lang="ta">Tamil</button>
-                                <button type="button" class="btn btn-outline-secondary lang-btn"
-                                    data-lang="hi">Hindi</button>
-                            </div>
-                            <div class="form-text">Type translations per language. Switching preserves your inputs.
-                            </div>
-                        </div>
-
-                        <div class="col-12">
-                            <!-- English inputs -->
-                            <div class="lang-block" data-lang="en">
-                                <label class="form-label">Question Text (English)</label>
-                                <textarea class="form-control lang-input" id="question_text_en" name="question_text_en"
-                                    rows="3"></textarea>
-                            </div>
-                            <!-- Tamil inputs -->
-                            <div class="lang-block" data-lang="ta" style="display:none;">
-                                <label class="form-label">Question Text (Tamil)</label>
-                                <textarea class="form-control lang-input" id="question_text_ta" name="question_text_ta"
-                                    rows="3"></textarea>
-                            </div>
-                            <!-- Hindi inputs -->
-                            <div class="lang-block" data-lang="hi" style="display:none;">
-                                <label class="form-label">Question Text (Hindi)</label>
-                                <textarea class="form-control lang-input" id="question_text_hi" name="question_text_hi"
-                                    rows="3"></textarea>
-                            </div>
-                        </div>
-
-                        <div class="col-md-6" id="options-block">
-                            <label class="form-label">Options (A - D)</label>
-                            <div class="mb-3">
-                                <label class="form-label small">Option A</label>
-                                <input class="form-control mb-1 lang-input" name="option_a_en"
-                                    placeholder="Option A (English)">
-                                <input class="form-control mb-1 lang-input" name="option_a_ta" style="display:none;"
-                                    placeholder="Option A (Tamil)">
-                                <input class="form-control mb-1 lang-input" name="option_a_hi" style="display:none;"
-                                    placeholder="Option A (Hindi)">
-                                <input type="file" class="form-control form-control-sm option-image-input"
-                                    name="option_a_image" accept="image/*" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label small">Option B</label>
-                                <input class="form-control mb-1 lang-input" name="option_b_en"
-                                    placeholder="Option B (English)">
-                                <input class="form-control mb-1 lang-input" name="option_b_ta" style="display:none;"
-                                    placeholder="Option B (Tamil)">
-                                <input class="form-control mb-1 lang-input" name="option_b_hi" style="display:none;"
-                                    placeholder="Option B (Hindi)">
-                                <input type="file" class="form-control form-control-sm option-image-input"
-                                    name="option_b_image" accept="image/*" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label small">Option C</label>
-                                <input class="form-control mb-1 lang-input" name="option_c_en"
-                                    placeholder="Option C (English)">
-                                <input class="form-control mb-1 lang-input" name="option_c_ta" style="display:none;"
-                                    placeholder="Option C (Tamil)">
-                                <input class="form-control mb-1 lang-input" name="option_c_hi" style="display:none;"
-                                    placeholder="Option C (Hindi)">
-                                <input type="file" class="form-control form-control-sm option-image-input"
-                                    name="option_c_image" accept="image/*" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label small">Option D</label>
-                                <input class="form-control mb-1 lang-input" name="option_d_en"
-                                    placeholder="Option D (English)">
-                                <input class="form-control mb-1 lang-input" name="option_d_ta" style="display:none;"
-                                    placeholder="Option D (Tamil)">
-                                <input class="form-control mb-1 lang-input" name="option_d_hi" style="display:none;"
-                                    placeholder="Option D (Hindi)">
-                                <input type="file" class="form-control form-control-sm option-image-input"
-                                    name="option_d_image" accept="image/*" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6 d-flex align-items-start">
-                        <div class="card mt-3 w-100" style="min-height: 350px; max-height: 600px;">
-                            <div class="card-header">
-                                <strong>Live Preview</strong>
-                            </div>
-                            <div class="card-body" id="live-preview" style="height: 300px; overflow-y: auto;">
-                                <div id="live-preview-content">Fill the form to see live preview here.</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <script>
-                    function toggleOptionImages() {
-                        var type = document.getElementById('question-type').value;
-                        var show = (type === 'image_mcq');
-                        document.querySelectorAll('.option-image-input').forEach(function(input) {
-                            input.style.display = show ? '' : 'none';
-                        });
-                    }
-                    document.getElementById('question-type').addEventListener('change', toggleOptionImages);
-                    toggleOptionImages();
-                    </script>
-
-
-
-
-                    <div class="col-md-6" id="match-block" style="display:none;">
-                        <label class="form-label">Match Pairs</label>
-                        <div id="match-rows">
-                            <div class="d-flex mb-2">
-                                <input class="form-control me-2" name="match_left[]" placeholder="Left">
-                                <input class="form-control" name="match_right[]" placeholder="Right">
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="add-match-row">Add
-                            Row</button>
-                    </div>
-
-
-                    <div class="col-md-4" id="correct-answer-block">
-                        <label class="form-label">Correct Answer (single)</label>
-                        <input type="text" class="form-control" name="correct_answer"
-                            placeholder="E.g. A or 42 or True">
-                    </div>
-
-                    <div class="col-md-4" id="multi-correct-block" style="display:none;">
-                        <label class="form-label">Multi-select Correct Answers</label>
-                        <select multiple class="form-select" name="correct_answers[]">
-                            <option value="A">A</option>
-                            <option value="B">B</option>
-                            <option value="C">C</option>
-                            <option value="D">D</option>
+                    <div class="col-md-2">
+                        <label class="form-label">Exam (Source)</label>
+                        <select class="form-select" name="source">
+                            <option value="">All Exams</option>
+                            <?php foreach ($allSources as $source): ?>
+                                <option value="<?= htmlspecialchars($source) ?>" <?= ($_GET['source'] ?? '') == $source ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($source) ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 
-                    <div class="col-md-4" id="fill-blank-block" style="display:none;">
-                        <label class="form-label">Fill Blanks Answers</label>
-                        <input class="form-control" name="blanks"
-                            placeholder="Separate answers using |, e.g. ans1|ans2">
+                    <div class="col-md-2">
+                        <label class="form-label">Subject</label>
+                        <select class="form-select" name="subject">
+                            <option value="">All Subjects</option>
+                            <?php foreach ($allSubjects as $subject): ?>
+                                <option value="<?= htmlspecialchars($subject) ?>" <?= ($_GET['subject'] ?? '') == $subject ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($subject) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
 
-                    <div class="col-md-6" id="media-block" style="display:none;">
-                        <label class="form-label">Upload Image / Audio</label>
-                        <input type="file" class="form-control mb-2" name="image" accept="image/*">
-                        <input type="file" class="form-control" name="audio" accept="audio/*">
+                    <div class="col-md-2">
+                        <label class="form-label">Topic</label>
+                        <select class="form-select" name="topic">
+                            <option value="">All Topics</option>
+                            <?php foreach ($allTopics as $topic): ?>
+                                <option value="<?= htmlspecialchars($topic) ?>" <?= ($_GET['topic'] ?? '') == $topic ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($topic) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
 
-                    <div class="col-md-3">
+
+                    <div class="col-md-2">
                         <label class="form-label">Difficulty</label>
                         <select class="form-select" name="difficulty">
-                            <option value="easy">Easy</option>
-                            <option value="medium" selected>Medium</option>
-                            <option value="hard">Hard</option>
+                            <option value="">All Levels</option>
+                            <option value="easy" <?= ($_GET['difficulty'] ?? '') == 'easy' ? 'selected' : '' ?>>Easy
+                            </option>
+                            <option value="medium" <?= ($_GET['difficulty'] ?? '') == 'medium' ? 'selected' : '' ?>>Medium
+                            </option>
+                            <option value="hard" <?= ($_GET['difficulty'] ?? '') == 'hard' ? 'selected' : '' ?>>Hard
+                            </option>
                         </select>
                     </div>
 
                     <div class="col-md-3">
-                        <label class="form-label">Exam Year</label>
-                        <input class="form-control" name="exam_year" value="<?= date('Y') ?>">
+                        <label class="form-label">Search Text</label>
+                        <input type="text" class="form-control" name="search_text"
+                            value="<?= htmlspecialchars($_GET['search_text'] ?? '') ?>" placeholder="Search questions...">
                     </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label">Source / Exam</label>
-                        <input class="form-control" name="source" placeholder="e.g., SSC, Bank">
+                    <div class="col-md-1">
+                        <button class="btn btn-primary w-100" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
                     </div>
-
-                    <div class="col-12">
-                        <label class="form-label">Explanation</label>
-                        <textarea class="form-control" name="explanation" rows="3"></textarea>
-                    </div>
-
-                    <div class="col-12 d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_public" name="is_public" checked>
-                                <label class="form-check-label" for="is_public">Public</label>
-                            </div>
-                        </div>
-                        <div>
-                            <button type="button" class="btn btn-secondary me-2"
-                                onclick="window.location.href='index.php?page=questions'">Cancel</button>
-                            <button type="button" class="btn btn-outline-primary me-2" id="save-and-add-another-btn"><i
-                                    class="fas fa-save me-2"></i>Save & Add
-                                Another</button>
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-check me-2"></i>Save
-                                Question</button>
-                        </div>
-                    </div>
-            </div>
+                </div>
             </form>
         </div>
     </div>
-</div>
-</div>
 
-<script>
-function updateFormByType() {
-    const type = document.getElementById('question-type').value;
-    document.getElementById('passage-block').style.display = (type === 'passage') ? 'block' : 'none';
-    document.getElementById('options-block').style.display = (['text_mcq', 'image_mcq', 'multi_correct'].includes(
-        type)) ? 'block' : 'none';
-    document.getElementById('multi-correct-block').style.display = (type === 'multi_correct') ? 'block' : 'none';
-    document.getElementById('fill-blank-block').style.display = (type === 'fill_blank') ? 'block' : 'none';
-    document.getElementById('match-block').style.display = (type === 'match') ? 'block' : 'none';
-    document.getElementById('media-block').style.display = (type === 'image_mcq' || type === 'audio') ? 'block' :
-        'none';
-    document.getElementById('correct-answer-block').style.display = (['numerical', 'true_false', 'text_mcq',
-        'image_mcq', 'multi_correct'
-    ].includes(type)) ? 'block' : 'none';
-}
-document.getElementById('question-type').addEventListener('change', updateFormByType);
-updateFormByType();
-document.getElementById('add-match-row').addEventListener('click', function() {
-    const container = document.getElementById('match-rows');
-    const div = document.createElement('div');
-    div.className = 'd-flex mb-2';
-    div.innerHTML =
-        '<input class="form-control me-2" name="match_left[]" placeholder="Left"> <input class="form-control" name="match_right[]" placeholder="Right">';
-    container.appendChild(div);
-});
-document.getElementById('save-and-add-another-btn').addEventListener('click', function() {
-    document.getElementById('save_and_add_another').value = '1';
-    this.disabled = true;
-    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
-    document.getElementById('question-form').submit();
-});
 
-// Live preview logic
-// Ensure renderOptions is available on this page (fallback when list-page scripts are not loaded)
-if (typeof renderOptions !== 'function') {
-    function renderOptions(optionsJson) {
-        let html = '';
-        try {
-            const options = JSON.parse(optionsJson || '{}');
-            const keys = ['A', 'B', 'C', 'D', 'E'];
-            html += '<ul class="list-group mb-2">';
-            for (const key of keys) {
-                if (options[key] || options[key + '_image'] || options[key + '_img']) {
-                    let content = options[key] || '';
-                    if (options[key + '_image']) {
-                        content =
-                            `<div><img src="${options[key + '_image']}" style="max-width:200px; max-height:120px;" alt="${key}"></div>` +
-                            content;
-                    } else if (options[key + '_img']) {
-                        content =
-                            `<div><img src="${options[key + '_img']}" style="max-width:200px; max-height:120px;" alt="${key}"></div>` +
-                            content;
+
+    <!-- Questions List -->
+    <div class="row">
+        <?php foreach ($questions as $question): ?>
+            <?php include __DIR__ . '/questions/components/_question_card.php'; ?>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Modal: Add Question to Test -->
+    <div class="modal fade" id="addToTestModal" tabindex="-1" aria-labelledby="addToTestModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="POST" action="index.php?page=questions&action=add_question_to_test">
+                <input type="hidden" name="question_id" id="modalQuestionId">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Question to Test Pack</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="fw-bold" id="modalQuestionText"></p>
+                        <div class="mb-3">
+                            <label class="form-label">Select Test Pack</label>
+                            <select class="form-select" name="test_id" required>
+                                <?php
+                                $packs = $db->query("SELECT id, title FROM test_packs WHERE is_active = 1 AND is_visible_to_students = 1 ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+                                foreach ($packs as $pack) {
+                                    echo "<option value=\"{$pack['id']}\">" . htmlspecialchars($pack['title']) . "</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary">Add to Test</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Question Preview Modal -->
+    <div class="modal fade" id="questionPreviewModal" tabindex="-1" aria-labelledby="questionPreviewModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="questionPreviewModalLabel">Question Preview</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="preview-question-content">
+                        <!-- Content will be loaded by JS -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper to decode options JSON and render options safely (handles objects/arrays)
+        function renderOptions(optionsJson) {
+            const escapeHtml = s => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+            let html = '';
+            try {
+                const options = typeof optionsJson === 'object' ? optionsJson : JSON.parse(optionsJson || '{}');
+                const keys = ['A', 'B', 'C', 'D', 'E'];
+
+                // If options look like numeric sequences (e.g. "2 3 4 1"), render as a matrix
+                const firstRaw = options[keys[0]];
+                const first = (typeof firstRaw === 'string') ? firstRaw : (Array.isArray(firstRaw) ? firstRaw.join(' ') : '');
+                const looksLikeSequence = typeof first === 'string' && /^\s*\d+(\s+\d+)+\s*$/.test(first);
+                if (looksLikeSequence) {
+                    const cols = (first.trim().split(/\s+/)).length;
+                    html += '<table class="table table-sm table-bordered mb-2"><thead><tr><th></th>';
+                    for (let i = 0; i < cols; i++) html += `<th>(${['a', 'b', 'c', 'd', 'e'][i] || i + 1})</th>`;
+                    html += '</tr></thead><tbody>';
+
+                    for (const k of keys) {
+                        if (options[k]) {
+                            const val = options[k];
+                            const parts = (typeof val === 'string' ? val : (Array.isArray(val) ? val.join(' ') : String(val))).trim().split(/\s+/);
+                            html += `<tr><th style="width:60px">${k}</th>`;
+                            for (let i = 0; i < cols; i++) html += `<td>${escapeHtml(parts[i] || '')}</td>`;
+                            html += '</tr>';
+                        }
                     }
-                    html += `<li class="list-group-item"><strong>${key}.</strong> ${content}</li>`;
+                    html += '</tbody></table>';
+                    return html;
+                }
+
+                // Generic list rendering
+                html += '<ul class="list-group mb-2">';
+                for (const key of keys) {
+                    const raw = options[key];
+                    const namedImage = options[`${key}_image`] || options[`${key} _image`] || options[`${key}_img`];
+                    if (raw || namedImage) {
+                        let text = '';
+                        let imagePath = '';
+
+                        if (raw && typeof raw === 'object') {
+                            // common shapes: { text: '...', image: '...'} or { i18n: { en: '...' } }
+                            if (raw.text) text = raw.text;
+                            else if (raw.i18n && raw.i18n.en) text = raw.i18n.en;
+                            else if (typeof raw === 'object') {
+                                // fallback: pick first string property
+                                for (const p in raw) {
+                                    if (typeof raw[p] === 'string') { text = raw[p]; break; }
+                                }
+                            }
+                            if (raw.image) imagePath = raw.image;
+                        } else if (Array.isArray(raw)) {
+                            text = raw.join(' ');
+                        } else {
+                            text = raw != null ? String(raw) : '';
+                        }
+
+                        if (!imagePath) imagePath = namedImage || '';
+
+                        let content = '';
+                        if (imagePath) content += `<div><img src="${escapeHtml(imagePath)}" style="max-width:200px; max-height:120px;" alt="${key}"></div>`;
+                        content += escapeHtml(text);
+
+                        html += `<li class="list-group-item"><strong>${key}.</strong> ${content}</li>`;
+                    }
+                }
+                html += '</ul>';
+            } catch (e) { }
+            return html;
+        }
+
+        // Preview button click handler (converted to vanilla JavaScript)
+        document.addEventListener('click', function (e) {
+            if (e.target.closest('.preview-btn')) {
+                const btn = e.target.closest('.preview-btn');
+                // This button uses data attributes, so we can use the view-details-btn logic
+                // Since preview-btn and view-details-btn should work the same way
+                const questionData = {
+                    subject: btn.getAttribute('data-subject'),
+                    topic: btn.getAttribute('data-topic'),
+                    subtopic: btn.getAttribute('data-subtopic'),
+                    question_text: btn.getAttribute('data-question_text'),
+                    options: btn.getAttribute('data-options'),
+                    correct_answer: btn.getAttribute('data-correct_answer'),
+                    explanation: btn.getAttribute('data-explanation'),
+                    difficulty: btn.getAttribute('data-difficulty'),
+                    exam_year: btn.getAttribute('data-exam_year'),
+                    source: btn.getAttribute('data-source'),
+                    is_public: btn.getAttribute('data-is_public')
+                };
+
+                let html = '';
+                html +=
+                    `<div><span class='badge bg-primary'>${questionData.subject}</span> <span class='badge bg-secondary'>${questionData.topic}</span> <span class='badge bg-${questionData.difficulty === 'easy' ? 'success' : (questionData.difficulty === 'medium' ? 'warning' : 'danger')}'>${questionData.difficulty.charAt(0).toUpperCase() + questionData.difficulty.slice(1)}</span></div>`;
+                html += `<h5 class='mt-3'>${questionData.question_text}</h5>`;
+                // if question-level image/audio present in options JSON, render
+                try {
+                    const opts = JSON.parse(questionData.options || '{}');
+                    if (opts.image) {
+                        html +=
+                            `<div class="mb-2"><img src="${opts.image}" style="max-width:100%; height:auto;"></div>`;
+                    }
+                    if (opts.audio) {
+                        html += `<div class="mb-2"><audio controls src="${opts.audio}"></audio></div>`;
+                    }
+                } catch (e) { }
+                html += renderOptions(questionData.options);
+                html +=
+                    `<div class='mb-2'><strong>Correct Answer:</strong> ${questionData.correct_answer}</div>`;
+                html +=
+                    `<div class='mb-2'><strong>Explanation:</strong> ${questionData.explanation || '-'}</div>`;
+                html +=
+                    `<div class='mb-2'><strong>Exam Year:</strong> ${questionData.exam_year} <strong>Source:</strong> ${questionData.source}</div>`;
+                html +=
+                    `<div class='mb-2'><strong>Subtopic:</strong> ${questionData.subtopic || '-'}</div>`;
+                html +=
+                    `<div class='mb-2'><strong>Public:</strong> ${questionData.is_public}</div>`;
+
+                document.getElementById('preview-question-content').innerHTML = html;
+                var modal = new bootstrap.Modal(document.getElementById('questionPreviewModal'));
+                modal.show();
+            }
+        });
+    </script>
+
+
+
+    <!-- Bulk Actions -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="form-check d-inline-block me-3">
+                        <input class="form-check-input" type="checkbox" id="select-all">
+                        <label class="form-check-label" for="select-all">Select All</label>
+                    </div>
+                    <span class="text-muted">Selected: <span id="selected-count">0</span>
+                        questions</span>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary me-2" id="bulk-duplicate-btn" type="button">
+                        <i class="fas fa-copy me-2"></i>Duplicate Selected
+                    </button>
+                    <button class="btn btn-outline-success me-2" id="bulk-add-to-test-btn" type="button"
+                        data-bs-toggle="modal" data-bs-target="#bulkAddToTestModal">
+                        <i class="fas fa-plus me-2"></i>Add to Test
+                    </button>
+                    <button class="btn btn-outline-danger" id="bulk-delete-btn" type="button">
+                        <i class="fas fa-trash me-2"></i>Delete Selected
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Add to Test Modal -->
+    <div class="modal fade" id="bulkAddToTestModal" tabindex="-1" aria-labelledby="bulkAddToTestModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="POST" action="index.php?page=questions&action=bulk_add_to_test" id="bulk-add-to-test-form">
+                <input type="hidden" name="question_ids" id="bulkQuestionIds">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Selected Questions to Test Pack</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Select Test Pack</label>
+                            <select class="form-select" name="test_id" required>
+                                <?php
+                                $packs = $db->query("SELECT id, title FROM test_packs WHERE is_active = 1 AND is_visible_to_students = 1 ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+                                foreach ($packs as $pack) {
+                                    echo "<option value=\"{$pack['id']}\">" . htmlspecialchars($pack['title']) . "</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div>
+                            <small class="text-muted">You are adding <span id="bulk-selected-count">0</span>
+                                questions.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary">Add to Test</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Track selected checkboxes
+        function getSelectedQuestionIds() {
+            const selected = Array.from(document.querySelectorAll(
+                '.form-check-input[type="checkbox"]:checked:not(#select-all)'))
+                .map(cb => cb.value);
+            console.log('Selected question IDs:', selected);
+            return selected;
+        }
+
+        function updateSelectedCount() {
+            const count = getSelectedQuestionIds().length;
+            document.getElementById('selected-count').textContent = count;
+
+            // Update select-all checkbox state
+            const totalCheckboxes = document.querySelectorAll(
+                '.form-check-input[type="checkbox"]:not(#select-all)').length;
+            const selectAllCheckbox = document.getElementById('select-all');
+            if (count === 0) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = false;
+            } else if (count === totalCheckboxes) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.indeterminate = true;
+                selectAllCheckbox.checked = false;
+            }
+        }
+
+        // Select All functionality
+        document.getElementById('select-all').addEventListener('change', function () {
+            const isChecked = this.checked;
+            document.querySelectorAll('.form-check-input[type="checkbox"]:not(#select-all)')
+                .forEach(cb => {
+                    cb.checked = isChecked;
+                });
+            updateSelectedCount();
+        });
+
+        // Update count on checkbox change
+        document.querySelectorAll('.form-check-input[type="checkbox"]:not(#select-all)').forEach(cb => {
+            cb.addEventListener('change', updateSelectedCount);
+        });
+
+        // Bulk Duplicate
+        document.getElementById('bulk-duplicate-btn').addEventListener('click', function () {
+            console.log('Duplicate button clicked');
+            const ids = getSelectedQuestionIds();
+            console.log('Selected IDs for duplication:', ids);
+
+            if (ids.length === 0) {
+                alert('Please select at least one question to duplicate.');
+                return;
+            }
+            if (!confirm('Duplicate selected questions?')) return;
+
+            console.log('Sending duplicate request with IDs:', ids);
+
+            // Show loading state
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Duplicating...';
+
+            // Send AJAX request to duplicate
+            fetch('index.php?page=questions&action=bulk_duplicate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    question_ids: ids
+                })
+            })
+                .then(res => {
+                    console.log('Response status:', res.status);
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    if (data.success) {
+                        alert('Questions duplicated successfully!');
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Could not duplicate.'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Network error: ' + error.message);
+                })
+                .finally(() => {
+                    // Reset button state
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-copy me-2"></i>Duplicate Selected';
+                });
+        });
+
+        // Bulk Add to Test
+        document.getElementById('bulk-add-to-test-btn').addEventListener('click', function (e) {
+            const ids = getSelectedQuestionIds();
+            if (ids.length === 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                alert('Please select at least one question to add to test.');
+                return false;
+            }
+            document.getElementById('bulkQuestionIds').value = ids.join(',');
+            document.getElementById('bulk-selected-count').textContent = ids.length;
+        });
+
+        // Bulk Delete
+        document.getElementById('bulk-delete-btn').addEventListener('click', function () {
+            console.log('Bulk delete button clicked');
+            const ids = getSelectedQuestionIds();
+            console.log('Selected question IDs:', ids);
+            if (ids.length === 0) {
+                alert('Please select at least one question to delete.');
+                return;
+            }
+            if (!confirm('Are you sure you want to delete selected questions?')) return;
+
+            console.log('Sending delete request...');
+
+            // Show loading state
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
+
+            // Send AJAX request to dedicated endpoint
+            fetch('index.php?page=questions&action=bulk_delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    question_ids: ids
+                })
+            })
+                .then(res => {
+                    console.log('Delete response status:', res.status);
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    console.log('Delete parsed JSON:', data);
+                    if (data.success) {
+                        alert('Questions deleted successfully!');
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Could not delete.'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Network error: ' + error.message);
+                })
+                .finally(() => {
+                    // Reset button state
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-trash me-2"></i>Delete Selected';
+                });
+        });
+    </script>
+
+<?php elseif ($action === 'create'): ?>
+    <!-- Create Question Form (enhanced for multiple offline-capable types) -->
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Add New Question</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="index.php?page=questions&action=create" class="needs-validation" novalidate
+                        id="question-form" enctype="multipart/form-data">
+                        <input type="hidden" name="save_and_add_another" id="save_and_add_another" value="0">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Subject</label>
+                                <select class="form-select" name="subject">
+                                    <option value="">Select Subject</option>
+                                    <?php foreach ($allSubjects as $s): ?>
+                                        <option value="<?= htmlspecialchars($s) ?>"><?= htmlspecialchars($s) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text" style="margin-top: 15px;">Or add below</div>
+                                <input type="text" class="form-control mt-2" name="new_subject"
+                                    placeholder="Add a New subject">
+                            </div>
+
+                            <div class="col-md-4 d-flex flex-column justify-content-between" style="height: 100%;">
+                                <div>
+                                    <label class="form-label">Topic</label>
+                                    <input class="form-control" name="topic" placeholder="Topic">
+                                </div>
+                                <div class="mt-3">
+                                    <label class="form-label mb-1">Subtopic</label>
+                                    <input type="text" class="form-control" name="subtopic" placeholder="Subtopic">
+                                </div>
+                            </div>
+
+
+                            <div class="col-md-3">
+                                <label class="form-label">Question Type</label>
+                                <select class="form-select" id="question-type" name="question_type">
+                                    <option value="text_mcq">Text-Based MCQ (Single Correct)</option>
+                                    <option value="image_mcq">Image-Based MCQ</option>
+                                    <option value="passage">Passage-Based / Comprehension</option>
+                                    <option value="fill_blank">Fill in the Blanks</option>
+                                    <option value="match">Match the Following</option>
+                                    <option value="assertion">Assertion & Reasoning</option>
+                                    <option value="true_false">True / False</option>
+                                    <option value="numerical">Numerical</option>
+                                    <option value="multi_correct">Multiple Correct Answers (Multi-select)</option>
+                                    <option value="audio">Audio-Based Question</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12" id="passage-block" style="display:none;">
+                                <label class="form-label">Passage</label>
+                                <textarea class="form-control" name="passage" rows="4"></textarea>
+                            </div>
+
+                            <!-- Language switcher -->
+                            <div class="col-12 mb-2">
+                                <div class="btn-group" role="group" aria-label="Language switcher">
+                                    <button type="button" class="btn btn-outline-primary lang-btn active"
+                                        data-lang="en">English</button>
+                                    <button type="button" class="btn btn-outline-secondary lang-btn"
+                                        data-lang="ta">Tamil</button>
+                                    <button type="button" class="btn btn-outline-secondary lang-btn"
+                                        data-lang="hi">Hindi</button>
+                                </div>
+                                <div class="form-text">Type translations per language. Switching preserves your inputs.
+                                </div>
+                            </div>
+
+                            <!-- Left: question text, question image, match pairs and options -->
+
+                            <!-- Media block: placed above multilingual question text fields -->
+                            <div class="col-12 mb-3" id="media-block" style="display:none;">
+                                <label class="form-label">Upload Image / Audio</label>
+                                <input type="file" class="form-control mb-2" name="image" accept="image/*">
+                                <input type="file" class="form-control" name="audio" accept="audio/*">
+                            </div>
+
+                            <div class="col-md-6">
+                                <!-- English inputs -->
+                                <div class="lang-block" data-lang="en">
+                                    <label class="form-label">Question Text (English)</label>
+                                    <textarea class="form-control lang-input" id="question_text_en" name="question_text_en"
+                                        rows="3"></textarea>
+                                </div>
+                                <!-- Tamil inputs -->
+                                <div class="lang-block" data-lang="ta">
+                                    <label class="form-label">Question Text (Tamil)</label>
+                                    <textarea class="form-control lang-input" id="question_text_ta" name="question_text_ta"
+                                        rows="3"></textarea>
+                                </div>
+                                <!-- Hindi inputs -->
+                                <div class="lang-block" data-lang="hi">
+                                    <label class="form-label">Question Text (Hindi)</label>
+                                    <textarea class="form-control lang-input" id="question_text_hi" name="question_text_hi"
+                                        rows="3"></textarea>
+                                </div>
+
+                                <!-- Match pairs block (will be shown when question type is 'match') -->
+                                <div id="match-block" style="display:none;" class="mb-3">
+                                    <label class="form-label">Match Pairs</label>
+                                    <div id="match-rows">
+                                        <div class="d-flex mb-2">
+                                            <input class="form-control me-2" name="match_left[]" placeholder="Left">
+                                            <input class="form-control" name="match_right[]" placeholder="Right">
+                                            <button type="button"
+                                                class="btn btn-sm btn-outline-danger ms-2 remove-match-row"
+                                                title="Remove">&times;</button>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            id="add-match-row">Add Row</button>
+                                    </div>
+                                </div>
+
+                                <!-- Options laid out in two columns (A/B then C/D). Option E is hidden by default and toggleable. -->
+                                <div id="options-block">
+                                    <label class="form-label">Options (A - D)</label>
+                                    <div class="row">
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label small">Option A</label>
+                                            <input class="form-control mb-1 lang-input" name="option_a_en"
+                                                placeholder="Option A (English)">
+                                            <input class="form-control mb-1 lang-input" name="option_a_ta"
+                                                placeholder="Option A (Tamil)">
+                                            <input class="form-control mb-1 lang-input" name="option_a_hi"
+                                                placeholder="Option A (Hindi)">
+                                            <input type="file" class="form-control form-control-sm option-image-input"
+                                                name="option_a_image" accept="image/*" />
+                                        </div>
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label small">Option B</label>
+                                            <input class="form-control mb-1 lang-input" name="option_b_en"
+                                                placeholder="Option B (English)">
+                                            <input class="form-control mb-1 lang-input" name="option_b_ta"
+                                                placeholder="Option B (Tamil)">
+                                            <input class="form-control mb-1 lang-input" name="option_b_hi"
+                                                placeholder="Option B (Hindi)">
+                                            <input type="file" class="form-control form-control-sm option-image-input"
+                                                name="option_b_image" accept="image/*" />
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label small">Option C</label>
+                                            <input class="form-control mb-1 lang-input" name="option_c_en"
+                                                placeholder="Option C (English)">
+                                            <input class="form-control mb-1 lang-input" name="option_c_ta"
+                                                placeholder="Option C (Tamil)">
+                                            <input class="form-control mb-1 lang-input" name="option_c_hi"
+                                                placeholder="Option C (Hindi)">
+                                            <input type="file" class="form-control form-control-sm option-image-input"
+                                                name="option_c_image" accept="image/*" />
+                                        </div>
+                                        <div class="col-6 mb-3">
+                                            <label class="form-label small">Option D</label>
+                                            <input class="form-control mb-1 lang-input" name="option_d_en"
+                                                placeholder="Option D (English)">
+                                            <input class="form-control mb-1 lang-input" name="option_d_ta"
+                                                placeholder="Option D (Tamil)">
+                                            <input class="form-control mb-1 lang-input" name="option_d_hi"
+                                                placeholder="Option D (Hindi)">
+                                            <input type="file" class="form-control form-control-sm option-image-input"
+                                                name="option_d_image" accept="image/*" />
+                                        </div>
+                                    </div>
+                                    <div class="row" id="option-e-row" style="display:none;">
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label small">Option E</label>
+                                            <input class="form-control mb-1 lang-input" name="option_e_en"
+                                                placeholder="Option E (English)">
+                                            <input class="form-control mb-1 lang-input" name="option_e_ta"
+                                                placeholder="Option E (Tamil)">
+                                            <input class="form-control mb-1 lang-input" name="option_e_hi"
+                                                placeholder="Option E (Hindi)">
+                                            <input type="file" class="form-control form-control-sm option-image-input"
+                                                name="option_e_image" accept="image/*" />
+                                        </div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <button type="button" class="toggle-option-e btn btn-sm btn-outline-secondary"
+                                            data-target="#option-e-row">+ Add Option E</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <script>
+                                // Language switcher: show only inputs for selected language suffix (_en/_ta/_hi)
+                                (function () {
+                                    function setActiveLanguage(lang) {
+                                        // toggle button classes
+                                        document.querySelectorAll('.lang-btn').forEach(btn => {
+                                            if (btn.dataset && btn.dataset.lang === lang) btn.classList.add('active');
+                                            else btn.classList.remove('active');
+                                        });
+
+                                        // show/hide lang-block containers
+                                        document.querySelectorAll('.lang-block').forEach(lb => {
+                                            try {
+                                                if (lb.dataset && lb.dataset.lang === lang) lb.style.display = '';
+                                                else lb.style.display = 'none';
+                                            } catch (e) { }
+                                        });
+
+                                        // show/hide per-field lang-inputs based on suffix
+                                        document.querySelectorAll('.lang-input').forEach(inp => {
+                                            try {
+                                                const name = inp.name || inp.getAttribute('name') || '';
+                                                if (/_?(en|ta|hi)$/.test(name)) {
+                                                    // language-specific input: show only if suffix matches active lang
+                                                    if (new RegExp('_' + lang + '$').test(name)) inp.style.display = '';
+                                                    else inp.style.display = 'none';
+                                                } else {
+                                                    // non-language-specific inputs remain visible
+                                                    inp.style.display = '';
+                                                }
+                                            } catch (er) { }
+                                        });
+
+                                        // update preview if available
+                                        if (typeof updateLivePreview === 'function') updateLivePreview();
+                                        else if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+                                    }
+
+                                    // attach handlers
+                                    document.querySelectorAll('.lang-btn').forEach(btn => {
+                                        btn.addEventListener('click', function () {
+                                            const lang = (this.dataset && this.dataset.lang) || 'en';
+                                            setActiveLanguage(lang);
+                                        });
+                                    });
+
+                                    // init on DOM ready
+                                    if (document.readyState === 'loading') {
+                                        document.addEventListener('DOMContentLoaded', function () { setActiveLanguage('en'); });
+                                    } else setActiveLanguage('en');
+
+                                    // Option E toggle (delegated, per-form)
+                                    document.addEventListener('click', function (e) {
+                                        const toggle = e.target.closest('.toggle-option-e');
+                                        if (!toggle) return;
+                                        // Prefer row inside the same form as the toggle; fall back to global id
+                                        const form = toggle.closest('form') || document;
+                                        const row = form.querySelector('#option-e-row') || document.getElementById('option-e-row');
+                                        if (!row) return;
+                                        if (row.style.display === 'none' || row.style.display === '') {
+                                            row.style.display = 'block';
+                                            toggle.textContent = '- Remove Option E';
+                                        } else {
+                                            // clear non-file inputs in row when hiding
+                                            row.querySelectorAll('input').forEach(i => { if (i.type !== 'file') i.value = ''; });
+                                            row.style.display = 'none';
+                                            toggle.textContent = '+ Add Option E';
+                                        }
+                                        if (typeof updateLivePreview === 'function') updateLivePreview();
+                                    });
+
+                                    // delegated remove-match-row handler
+                                    document.addEventListener('click', function (e) {
+                                        if (e.target && e.target.classList && e.target.classList.contains('remove-match-row')) {
+                                            const row = e.target.closest('.d-flex');
+                                            if (row) row.remove();
+                                        }
+                                    });
+
+                                    // ensure add-match-row works (delegated in case of re-render)
+                                    document.addEventListener('click', function (e) {
+                                        if (e.target && (e.target.id === 'add-match-row' || e.target.closest('#add-match-row'))) {
+                                            const container = document.getElementById('match-rows');
+                                            if (!container) return;
+                                            const div = document.createElement('div');
+                                            div.className = 'd-flex mb-2';
+                                            div.innerHTML = '<input class="form-control me-2" name="match_left[]" placeholder="Left"> <input class="form-control" name="match_right[]" placeholder="Right"> <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-match-row">&times;</button>';
+                                            container.appendChild(div);
+                                        }
+                                    });
+                                })();
+                            </script>
+
+                            <!-- Right: Live preview (narrower to sit closer to options) -->
+                            <div class="col-md-5 d-flex align-items-start">
+                                <div class="card mt-1 w-100" style="min-height: 350px; max-height: 600px;">
+                                    <div class="card-header"><strong>Live Preview</strong></div>
+                                    <div class="card-body" id="live-preview-edit" style="height: 300px; overflow-y: auto;">
+                                        <div id="live-preview-content">Fill the form to see live preview here.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <script>
+                                (function () {
+                                    // Provide minimal preview helpers for edit form when create-form scripts are not loaded
+                                    if (typeof escapeHtml !== 'function') {
+                                        window.escapeHtml = function (str) {
+                                            return String(str == null ? '' : str)
+                                                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                        };
+                                    }
+
+                                    if (typeof renderOptions !== 'function') {
+                                        window.renderOptions = function (optionsJson) {
+                                            try {
+                                                var options = (typeof optionsJson === 'object') ? optionsJson : JSON.parse(optionsJson || '{}');
+                                                var keys = ['A', 'B', 'C', 'D', 'E'];
+                                                var html = '';
+                                                html += '<ul class="list-group mb-2">';
+                                                keys.forEach(function (key) {
+                                                    var raw = options[key];
+                                                    var namedImage = options[key + '_image'] || options[key + '_img'];
+                                                    if (raw || namedImage) {
+                                                        var text = '';
+                                                        var imagePath = '';
+                                                        if (raw && typeof raw === 'object') {
+                                                            if (raw.text) text = raw.text;
+                                                            else if (raw.i18n && raw.i18n.en) text = raw.i18n.en;
+                                                            else {
+                                                                for (var p in raw) if (typeof raw[p] === 'string') { text = raw[p]; break; }
+                                                            }
+                                                            if (raw.image) imagePath = raw.image;
+                                                        } else if (Array.isArray(raw)) {
+                                                            text = raw.join(' ');
+                                                        } else {
+                                                            text = raw != null ? String(raw) : '';
+                                                        }
+                                                        if (!imagePath) imagePath = namedImage || '';
+                                                        var content = '';
+                                                        if (imagePath) content += '<div><img src="' + escapeHtml(imagePath) + '" style="max-width:200px; max-height:120px;" alt="' + key + '"></div>';
+                                                        content += escapeHtml(text);
+                                                        html += '<li class="list-group-item"><strong>' + key + '.</strong> ' + content + '</li>';
+                                                    }
+                                                });
+                                                html += '</ul>';
+                                                return html;
+                                            } catch (e) { return ''; }
+                                        };
+                                    }
+
+                                    function buildPreviewHtmlEdit() {
+                                        var formPrefix = '#question-form-edit ';
+                                        var subject = (document.querySelector(formPrefix + '[name="subject"]') || {}).value || '';
+                                        var topic = (document.querySelector(formPrefix + '[name="topic"]') || {}).value || '';
+                                        var activeLang = (document.querySelector(formPrefix + '.lang-btn.active') && document.querySelector(formPrefix + '.lang-btn.active').dataset.lang) || 'en';
+
+                                        var enText = (document.querySelector(formPrefix + '[name="question_text_en"]') || {}).value || '';
+                                        var activeText = (document.querySelector(formPrefix + '[name="question_text_' + activeLang + '"]') || {}).value || '';
+
+                                        var optsEn = {}; var optsLang = {};
+                                        ['A', 'B', 'C', 'D', 'E'].forEach(function (k) {
+                                            var nameEn = 'option_' + k.toLowerCase() + '_en';
+                                            var nameLang = 'option_' + k.toLowerCase() + '_' + activeLang;
+                                            var elEn = document.querySelector(formPrefix + '[name="' + nameEn + '"]');
+                                            var elLang = document.querySelector(formPrefix + '[name="' + nameLang + '"]');
+                                            if (elEn && elEn.value) optsEn[k] = elEn.value;
+                                            if (elLang && elLang.value) optsLang[k] = elLang.value;
+                                        });
+
+                                        var tempOptionsEn = Object.assign({}, optsEn);
+                                        var tempOptionsLang = Object.assign({}, optsLang);
+
+                                        // question-level image/audio
+                                        var qimg = document.querySelector(formPrefix + '[name="image"]');
+                                        if (qimg && qimg.files && qimg.files[0]) {
+                                            tempOptionsEn.image = URL.createObjectURL(qimg.files[0]);
+                                            tempOptionsLang.image = tempOptionsEn.image;
+                                        }
+                                        var qaud = document.querySelector(formPrefix + '[name="audio"]');
+                                        if (qaud && qaud.files && qaud.files[0]) {
+                                            tempOptionsEn.audio = URL.createObjectURL(qaud.files[0]);
+                                            tempOptionsLang.audio = tempOptionsEn.audio;
+                                        }
+
+                                        ['a', 'b', 'c', 'd', 'e'].forEach(function (ch) {
+                                            var inp = document.querySelector(formPrefix + '[name="option_' + ch + '_image"]');
+                                            if (inp && inp.files && inp.files[0]) {
+                                                var url = URL.createObjectURL(inp.files[0]);
+                                                tempOptionsEn[ch.toUpperCase() + '_image'] = url;
+                                                tempOptionsLang[ch.toUpperCase() + '_image'] = url;
+                                            }
+                                        });
+
+                                        var html = '';
+                                        html += '<div><strong>' + escapeHtml(subject) + '</strong> <small class="text-muted">' + escapeHtml(topic) + '</small></div>';
+                                        // Show only active language text; fallback to English if active language is empty
+                                        var displayText = (activeLang === 'en') ? enText : (activeText || enText);
+                                        if (displayText) html += '<h6 class="mt-2">' + escapeHtml(displayText) + '</h6>';
+
+                                        if (tempOptionsEn.image) html += '<div class="mb-2"><img src="' + tempOptionsEn.image + '" style="max-width:100%; height:auto"></div>';
+                                        if (tempOptionsEn.audio) html += '<div class="mb-2"><audio controls src="' + tempOptionsEn.audio + '"></audio></div>';
+
+                                        // Show options for active language only, fallback to English if empty.
+                                        if (activeLang === 'en') {
+                                            if (Object.keys(tempOptionsEn).length > 0) html += renderOptions(JSON.stringify(tempOptionsEn));
+                                        } else {
+                                            if (Object.keys(tempOptionsLang).length > 0) html += renderOptions(JSON.stringify(tempOptionsLang));
+                                            else if (Object.keys(tempOptionsEn).length > 0) html += renderOptions(JSON.stringify(tempOptionsEn));
+                                        }
+
+                                        var correct = (document.querySelector(formPrefix + '[name="correct_answer"]') || {}).value || '';
+                                        if (correct) html += '<div class="mt-2"><strong>Correct:</strong> ' + escapeHtml(correct) + '</div>';
+
+                                        return html;
+                                    }
+
+                                    window.updateLivePreview = function () {
+                                        var cont = document.querySelector('#question-form-edit #live-preview-content');
+                                        if (!cont) return;
+                                        cont.innerHTML = buildPreviewHtmlEdit();
+                                    };
+
+                                    // Wire events for edit form
+                                    ['input', 'change'].forEach(function (evt) {
+                                        var f = document.getElementById('question-form-edit');
+                                        if (!f) return;
+                                        f.addEventListener(evt, function (e) {
+                                            updateLivePreview();
+                                        }, { capture: true });
+                                    });
+
+                                    // Initial preview on load
+                                    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', updateLivePreview);
+                                    else updateLivePreview();
+
+                                    // Language switcher init for edit form (if not already initialized on page)
+                                    (function initEditLangSwitcher() {
+                                        function setActiveLanguageEdit(lang) {
+                                            document.querySelectorAll('#question-form-edit .lang-btn').forEach(function (b) {
+                                                if ((b.dataset && b.dataset.lang) === lang) b.classList.add('active'); else b.classList.remove('active');
+                                            });
+                                            // Show only the active language block (hide others)
+                                            document.querySelectorAll('#question-form-edit .lang-block').forEach(function (lb) {
+                                                try {
+                                                    if (lb.dataset && lb.dataset.lang === lang) {
+                                                        lb.style.display = '';
+                                                        lb.style.borderLeft = '3px solid #007bff';
+                                                        lb.style.paddingLeft = '15px';
+                                                        lb.style.backgroundColor = '#f8f9fa';
+                                                    } else {
+                                                        lb.style.display = 'none';
+                                                        lb.style.borderLeft = 'none';
+                                                        lb.style.paddingLeft = '0px';
+                                                        lb.style.backgroundColor = 'transparent';
+                                                    }
+                                                } catch (er) { }
+                                            });
+                                            // per-field lang-input visibility: show only inputs for the active language
+                                            // and keep non-language-specific inputs visible
+                                            document.querySelectorAll('#question-form-edit .lang-input').forEach(function (inp) {
+                                                try {
+                                                    var name = inp.name || inp.getAttribute('name') || '';
+                                                    if (/_?(en|ta|hi)$/.test(name)) {
+                                                        if (new RegExp('_' + lang + '$').test(name)) inp.style.display = ''; else inp.style.display = 'none';
+                                                    } else {
+                                                        inp.style.display = '';
+                                                    }
+                                                } catch (er) { }
+                                            });
+                                            updateLivePreview();
+                                        }
+
+                                        document.querySelectorAll('#question-form-edit .lang-btn').forEach(function (btn) {
+                                            btn.addEventListener('click', function () {
+                                                var lang = (this.dataset && this.dataset.lang) || 'en';
+                                                setActiveLanguageEdit(lang);
+                                            });
+                                        });
+
+                                        // initialize to pre-marked active or default
+                                        var initial = (document.querySelector('#question-form-edit .lang-btn.active') && document.querySelector('#question-form-edit .lang-btn.active').dataset.lang) || 'en';
+                                        setActiveLanguageEdit(initial);
+                                    })();
+                                })();
+                            </script>
+
+                            <script>
+                                // Ensure edit form uses the same language switcher and live preview logic as create
+                                (function () {
+                                    var editForm = document.getElementById('question-form-edit');
+                                    if (!editForm) return; // nothing to do
+
+                                    // Simple language switcher for the form (works independently of create/initLangSwitcher)
+                                    function setActiveLanguageForForm(form, lang) {
+                                        // buttons
+                                        form.querySelectorAll('.lang-btn').forEach(function (b) {
+                                            try { if ((b.dataset && b.dataset.lang) === lang) b.classList.add('active'); else b.classList.remove('active'); } catch (e) { }
+                                        });
+                                        // Show only the active language block (hide others)
+                                        form.querySelectorAll('.lang-block').forEach(function (lb) {
+                                            try {
+                                                if (lb.dataset && lb.dataset.lang === lang) {
+                                                    lb.style.display = '';
+                                                    lb.style.borderLeft = '3px solid #007bff';
+                                                    lb.style.paddingLeft = '15px';
+                                                    lb.style.backgroundColor = '#f8f9fa';
+                                                } else {
+                                                    lb.style.display = 'none';
+                                                    lb.style.borderLeft = 'none';
+                                                    lb.style.paddingLeft = '0px';
+                                                    lb.style.backgroundColor = 'transparent';
+                                                }
+                                            } catch (e) { }
+                                        });
+                                        // per-field lang-input visibility: show only inputs for the active language
+                                        // and keep non-language-specific inputs visible
+                                        form.querySelectorAll('.lang-input').forEach(function (inp) {
+                                            try {
+                                                var name = inp.name || inp.getAttribute('name') || '';
+                                                if (/_?(en|ta|hi)$/.test(name)) {
+                                                    if (new RegExp('_' + lang + '$').test(name)) inp.style.display = ''; else inp.style.display = 'none';
+                                                } else {
+                                                    inp.style.display = '';
+                                                }
+                                            } catch (e) { }
+                                        });
+                                        if (typeof updateLivePreview === 'function') updateLivePreview();
+                                    }
+
+                                    // Attach to buttons inside the form
+                                    editForm.querySelectorAll('.lang-btn').forEach(function (btn) {
+                                        btn.addEventListener('click', function () {
+                                            var lang = (this.dataset && this.dataset.lang) || 'en';
+                                            setActiveLanguageForForm(editForm, lang);
+                                        });
+                                    });
+
+                                    // Wire preview update events (use existing updateLivePreview if present)
+                                    ['input', 'change'].forEach(function (evt) {
+                                        editForm.addEventListener(evt, function () {
+                                            if (typeof updateLivePreview === 'function') {
+                                                updateLivePreview();
+                                                return;
+                                            }
+                                            // Fallback: if buildPreviewHtmlEdit exists, call it
+                                            if (typeof buildPreviewHtmlEdit === 'function') {
+                                                var cont = document.querySelector('#question-form-edit #live-preview-content');
+                                                if (cont) cont.innerHTML = buildPreviewHtmlEdit();
+                                            }
+                                        }, { capture: true });
+                                    });
+
+                                    // Initialize to the active button or default 'en'
+                                    var initial = (editForm.querySelector('.lang-btn.active') && editForm.querySelector('.lang-btn.active').dataset.lang) || 'en';
+                                    setActiveLanguageForForm(editForm, initial);
+
+                                    // Trigger initial preview
+                                    if (typeof updateLivePreview === 'function') updateLivePreview();
+                                    else if (typeof buildPreviewHtmlEdit === 'function') {
+                                        var cont = document.querySelector('#question-form-edit #live-preview-content');
+                                        if (cont) cont.innerHTML = buildPreviewHtmlEdit();
+                                    }
+                                })();
+                            </script>
+
+                            <script>
+                                // Toggle per-form option image inputs when question type changes (works for create & edit)
+                                function toggleOptionImagesForForms() {
+                                    document.querySelectorAll('#question-type').forEach(function (sel) {
+                                        var show = (sel.value === 'image_mcq');
+                                        var form = sel.closest('form');
+                                        if (!form) return;
+                                        form.querySelectorAll('.option-image-input').forEach(function (input) {
+                                            input.style.display = show ? '' : 'none';
+                                        });
+                                        // also ensure media block visibility inside the form (if present)
+                                        var mb = form.querySelector('#media-block') || form.querySelector('#media-block-edit');
+                                        if (mb) mb.style.display = show ? '' : 'none';
+                                    });
+                                }
+                                document.querySelectorAll('#question-type').forEach(function (s) {
+                                    s.addEventListener('change', toggleOptionImagesForForms);
+                                });
+                                toggleOptionImagesForForms();
+                            </script>
+
+
+
+
+                            <div class="col-md-6" id="match-block" style="display:none;">
+                                <label class="form-label">Match Pairs</label>
+                                <div id="match-rows">
+                                    <div class="d-flex mb-2">
+                                        <input class="form-control me-2" name="match_left[]" placeholder="Left">
+                                        <input class="form-control" name="match_right[]" placeholder="Right">
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="add-match-row">Add
+                                    Row</button>
+                            </div>
+
+
+                            <div class="col-md-4" id="correct-answer-block">
+                                <label class="form-label">Correct Answer (single)</label>
+                                <input type="text" class="form-control" name="correct_answer"
+                                    placeholder="E.g. A or 42 or True">
+                            </div>
+
+                            <div class="col-md-4" id="multi-correct-block" style="display:none;">
+                                <label class="form-label">Multi-select Correct Answers</label>
+                                <select multiple class="form-select" name="correct_answers[]">
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4" id="fill-blank-block" style="display:none;">
+                                <label class="form-label">Fill Blanks Answers</label>
+                                <input class="form-control" name="blanks"
+                                    placeholder="Separate answers using |, e.g. ans1|ans2">
+                            </div>
+
+                            <!-- removed duplicate media-block: using top-placed media upload to appear above question texts -->
+
+                            <div class="col-md-3">
+                                <label class="form-label">Difficulty</label>
+                                <select class="form-select" name="difficulty">
+                                    <option value="easy">Easy</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Exam Year</label>
+                                <input class="form-control" name="exam_year" value="<?= date('Y') ?>">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Source / Exam</label>
+                                <input class="form-control" name="source" placeholder="e.g., SSC, Bank">
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Explanation</label>
+                                <textarea class="form-control" name="explanation" rows="3"></textarea>
+                            </div>
+
+                            <div class="col-12 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="is_public" name="is_public"
+                                            checked>
+                                        <label class="form-check-label" for="is_public">Public</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-secondary me-2"
+                                        onclick="window.location.href='index.php?page=questions'">Cancel</button>
+                                    <button type="button" class="btn btn-outline-primary me-2"
+                                        id="save-and-add-another-btn"><i class="fas fa-save me-2"></i>Save & Add
+                                        Another</button>
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-check me-2"></i>Save
+                                        Question</button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateFormByType() {
+            const type = document.getElementById('question-type').value;
+            document.getElementById('passage-block').style.display = (type === 'passage') ? 'block' : 'none';
+            document.getElementById('options-block').style.display = (['text_mcq', 'image_mcq', 'multi_correct'].includes(
+                type)) ? 'block' : 'none';
+            document.getElementById('multi-correct-block').style.display = (type === 'multi_correct') ? 'block' : 'none';
+            document.getElementById('fill-blank-block').style.display = (type === 'fill_blank') ? 'block' : 'none';
+            document.getElementById('match-block').style.display = (type === 'match') ? 'block' : 'none';
+            document.getElementById('media-block').style.display = (type === 'image_mcq' || type === 'audio') ? 'block' :
+                'none';
+            document.getElementById('correct-answer-block').style.display = (['numerical', 'true_false', 'text_mcq',
+                'image_mcq', 'multi_correct'
+            ].includes(type)) ? 'block' : 'none';
+        }
+        document.getElementById('question-type').addEventListener('change', updateFormByType);
+        updateFormByType();
+        document.getElementById('add-match-row').addEventListener('click', function () {
+            const container = document.getElementById('match-rows');
+            const div = document.createElement('div');
+            div.className = 'd-flex mb-2';
+            div.innerHTML =
+                '<input class="form-control me-2" name="match_left[]" placeholder="Left"> <input class="form-control" name="match_right[]" placeholder="Right">';
+            container.appendChild(div);
+        });
+        document.getElementById('save-and-add-another-btn').addEventListener('click', function () {
+            document.getElementById('save_and_add_another').value = '1';
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+            document.getElementById('question-form').submit();
+        });
+
+        // Live preview logic
+        // Ensure renderOptions is available on this page (fallback when list-page scripts are not loaded)
+        if (typeof renderOptions !== 'function') {
+            function renderOptions(optionsJson) {
+                let html = '';
+                try {
+                    const options = JSON.parse(optionsJson || '{}');
+                    const keys = ['A', 'B', 'C', 'D', 'E'];
+                    html += '<ul class="list-group mb-2">';
+                    for (const key of keys) {
+                        if (options[key] || options[key + '_image'] || options[key + '_img']) {
+                            let content = options[key] || '';
+                            if (options[key + '_image']) {
+                                content =
+                                    `<div><img src="${options[key + '_image']}" style="max-width:200px; max-height:120px;" alt="${key}"></div>` +
+                                    content;
+                            } else if (options[key + '_img']) {
+                                content =
+                                    `<div><img src="${options[key + '_img']}" style="max-width:200px; max-height:120px;" alt="${key}"></div>` +
+                                    content;
+                            }
+                            html += `<li class="list-group-item"><strong>${key}.</strong> ${content}</li>`;
+                        }
+                    }
+                    html += '</ul>';
+                } catch (e) { }
+                return html;
+            }
+        }
+
+        function buildPreviewHtml() {
+            const subject = document.querySelector('[name="subject"]').value || '';
+            const topic = document.querySelector('[name="topic"]').value || '';
+            // read active language
+            const activeLang = document.querySelector('.lang-btn.active') ? document.querySelector('.lang-btn.active').dataset.lang : 'en';
+
+            // read english and active language texts so we can show both
+            const enTextEl = document.querySelector('[name="question_text_en"]');
+            const enText = enTextEl ? enTextEl.value : '';
+            const activeTextEl = document.querySelector('[name="question_text_' + activeLang + '"]');
+            const activeText = activeTextEl ? activeTextEl.value : '';
+
+            // collect options for english and active language
+            const optsEn = {};
+            const optsLang = {};
+            ['A', 'B', 'C', 'D', 'E'].forEach(k => {
+                const nameEn = 'option_' + k.toLowerCase() + '_en';
+                const nameLang = 'option_' + k.toLowerCase() + '_' + activeLang;
+                const elEn = document.querySelector('[name="' + nameEn + '"]');
+                const elLang = document.querySelector('[name="' + nameLang + '"]');
+                if (elEn && elEn.value) optsEn[k] = elEn.value;
+                if (elLang && elLang.value) optsLang[k] = elLang.value;
+            });
+
+            // Build temp options objects and attach uploaded media object URLs if any
+            const tempOptionsEn = Object.assign({}, optsEn);
+            const tempOptionsLang = Object.assign({}, optsLang);
+
+            // question-level image/audio (shared)
+            const qimg = document.querySelector('[name="image"]');
+            if (qimg && qimg.files && qimg.files[0]) {
+                tempOptionsEn.image = URL.createObjectURL(qimg.files[0]);
+                tempOptionsLang.image = tempOptionsEn.image;
+            }
+            const qaud = document.querySelector('[name="audio"]');
+            if (qaud && qaud.files && qaud.files[0]) {
+                tempOptionsEn.audio = URL.createObjectURL(qaud.files[0]);
+                tempOptionsLang.audio = tempOptionsEn.audio;
+            }
+
+            // per-option images (shared across langs)
+            ['a', 'b', 'c', 'd', 'e'].forEach(ch => {
+                const inp = document.querySelector('[name="option_' + ch + '_image"]');
+                if (inp && inp.files && inp.files[0]) {
+                    const url = URL.createObjectURL(inp.files[0]);
+                    tempOptionsEn[ch.toUpperCase() + '_image'] = url;
+                    tempOptionsLang[ch.toUpperCase() + '_image'] = url;
+                }
+            });
+
+            let html = '';
+            html += `<div><strong>${subject}</strong> <small class="text-muted">${topic}</small></div>`;
+
+            // Show only the active language's question text.
+            // If active language text is empty, fall back to English so preview isn't blank.
+            let displayText = '';
+            if (activeLang === 'en') displayText = enText;
+            else displayText = activeText || enText;
+            if (displayText) html += `<h6 class="mt-2">${escapeHtml(displayText)}</h6>`;
+
+            // show question image/audio
+            if (tempOptionsEn.image) html += `<div class="mb-2"><img src="${tempOptionsEn.image}" style="max-width:100%; height:auto"></div>`;
+            if (tempOptionsEn.audio) html += `<div class="mb-2"><audio controls src="${tempOptionsEn.audio}"></audio></div>`;
+
+            // Show options for the active language only. If active language has no options,
+            // fall back to English options so preview isn't empty. Do not render language headings.
+            if (activeLang === 'en') {
+                if (Object.keys(tempOptionsEn).length > 0) {
+                    html += renderOptions(JSON.stringify(tempOptionsEn));
+                }
+            } else {
+                if (Object.keys(tempOptionsLang).length > 0) {
+                    html += renderOptions(JSON.stringify(tempOptionsLang));
+                } else if (Object.keys(tempOptionsEn).length > 0) {
+                    html += renderOptions(JSON.stringify(tempOptionsEn));
                 }
             }
-            html += '</ul>';
-        } catch (e) {}
-        return html;
-    }
-}
 
-function buildPreviewHtml() {
-    const subject = document.querySelector('[name="subject"]').value || '';
-    const topic = document.querySelector('[name="topic"]').value || '';
-    // read active language
-    const activeLang = document.querySelector('.lang-btn.active') ? document.querySelector('.lang-btn.active').dataset
-        .lang : 'en';
-    const qtext = document.querySelector('[name="question_text_' + activeLang + '"]') ? document.querySelector(
-        '[name="question_text_' + activeLang + '"]').value : '';
-    const opts = {};
-    ['A', 'B', 'C', 'D', 'E'].forEach(k => {
-        const name = 'option_' + k.toLowerCase() + '_' + activeLang;
-        const el = document.querySelector('[name="' + name + '"]');
-        if (el && el.value) opts[k] = el.value;
-    });
+            const correct = document.querySelector('[name="correct_answer"]').value || '';
+            if (correct) html += `<div class="mt-2"><strong>Correct:</strong> ${escapeHtml(correct)}</div>`;
 
-    // Build a temporary options JSON and attach uploaded media object URLs if any
-    const tempOptions = Object.assign({}, opts);
-
-    // question-level image/audio
-    const qimg = document.querySelector('[name="image"]');
-    if (qimg && qimg.files && qimg.files[0]) {
-        tempOptions.image = URL.createObjectURL(qimg.files[0]);
-    }
-    const qaud = document.querySelector('[name="audio"]');
-    if (qaud && qaud.files && qaud.files[0]) {
-        tempOptions.audio = URL.createObjectURL(qaud.files[0]);
-    }
-
-    // per-option images
-    ['a', 'b', 'c', 'd', 'e'].forEach(ch => {
-        const inp = document.querySelector('[name="option_' + ch + '_image"]');
-        if (inp && inp.files && inp.files[0]) {
-            tempOptions[ch.toUpperCase() + '_image'] = URL.createObjectURL(inp.files[0]);
+            return html;
         }
-    });
 
-    let html = '';
-    html += `<div><strong>${subject}</strong> <small class="text-muted">${topic}</small></div>`;
-    html += `<h6 class="mt-2">${escapeHtml(qtext)}</h6>`;
-
-    // show question image/audio
-    if (tempOptions.image) html +=
-        `<div class="mb-2"><img src="${tempOptions.image}" style="max-width:100%; height:auto"></div>`;
-    if (tempOptions.audio) html += `<div class="mb-2"><audio controls src="${tempOptions.audio}"></audio></div>`;
-
-    html += renderOptions(JSON.stringify(tempOptions));
-
-    const correct = document.querySelector('[name="correct_answer"]').value || '';
-    if (correct) html += `<div class="mt-2"><strong>Correct:</strong> ${escapeHtml(correct)}</div>`;
-
-    return html;
-}
-
-function escapeHtml(str) {
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function updateLivePreview() {
-    const cont = document.getElementById('live-preview-content');
-    cont.innerHTML = buildPreviewHtml();
-}
-
-// Wire events
-['input', 'change'].forEach(evt => {
-    document.getElementById('question-form').addEventListener(evt, function(e) {
-        // update preview on relevant fields only
-        const relevant = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'option_e',
-            'image', 'audio', 'option_a_image', 'option_b_image', 'option_c_image',
-            'option_d_image', 'option_e_image', 'correct_answer', 'subject', 'topic'
-        ];
-        if (e.target && (relevant.includes(e.target.name) || e.target.closest('#question-form'))) {
-            updateLivePreview();
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
-    }, {
-        capture: true
-    });
-});
 
-// Initial preview
-updateLivePreview();
+        function updateLivePreview() {
+            const cont = document.getElementById('live-preview-content');
+            cont.innerHTML = buildPreviewHtml();
+        }
 
-// Language switcher behaviour - robust initializer
-(function() {
-    function setActiveLanguage(lang) {
-        // set active class on buttons
-        document.querySelectorAll('.lang-btn').forEach(b => {
-            if ((b.dataset && b.dataset.lang) === lang) b.classList.add('active');
-            else b.classList.remove('active');
-        });
-
-        // show/hide lang-blocks
-        document.querySelectorAll('.lang-block').forEach(lb => {
-            try {
-                lb.style.display = (lb.dataset && lb.dataset.lang === lang) ? '' : 'none';
-            } catch (er) {
-                // ignore
-            }
-        });
-
-        // show/hide per-field inputs (fallback-friendly check)
-        document.querySelectorAll('.lang-input').forEach(inp => {
-            const name = inp.name || inp.getAttribute('name') || '';
-            const re = new RegExp('_' + lang + '$');
-            const anyLangRe = /_(en|ta|hi)$/;
-            if (re.test(name)) {
-                inp.style.display = '';
-            } else if (anyLangRe.test(name)) {
-                inp.style.display = 'none';
-            }
-        });
-
-        // refresh preview
-        if (typeof updateLivePreview === 'function') updateLivePreview();
-    }
-
-    function initLangSwitcher() {
-        // attach click handlers
-        document.querySelectorAll('.lang-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const lang = (this.dataset && this.dataset.lang) || 'en';
-                setActiveLanguage(lang);
+        // Wire events
+        ['input', 'change'].forEach(evt => {
+            document.getElementById('question-form').addEventListener(evt, function (e) {
+                // update preview on relevant fields only
+                const relevant = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'option_e',
+                    'image', 'audio', 'option_a_image', 'option_b_image', 'option_c_image',
+                    'option_d_image', 'option_e_image', 'correct_answer', 'subject', 'topic'
+                ];
+                if (e.target && (relevant.includes(e.target.name) || e.target.closest('#question-form'))) {
+                    updateLivePreview();
+                }
+            }, {
+                capture: true
             });
         });
 
-        // initialize to whatever button is marked active or default to en
-        const initial = (document.querySelector('.lang-btn.active') && document.querySelector('.lang-btn.active')
-            .dataset.lang) || 'en';
-        setActiveLanguage(initial);
-    }
+        // Initial preview
+        updateLivePreview();
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initLangSwitcher);
-    } else {
-        // DOM already ready -> initialize immediately
-        initLangSwitcher();
-    }
-})();
-</script>
+        // Language switcher behaviour - show only active language inputs (English default)
+        (function () {
+            function setActiveLanguage(lang) {
+                // set active class on buttons
+                document.querySelectorAll('.lang-btn').forEach(b => {
+                    if ((b.dataset && b.dataset.lang) === lang) b.classList.add('active');
+                    else b.classList.remove('active');
+                });
+
+                // show/hide lang-blocks: show only active language block
+                document.querySelectorAll('.lang-block').forEach(lb => {
+                    try {
+                        if (lb.dataset && lb.dataset.lang === lang) {
+                            lb.style.display = '';
+                            lb.classList.add('active');
+                        } else {
+                            lb.style.display = 'none';
+                            lb.classList.remove('active');
+                        }
+                    } catch (er) { }
+                });
+
+                // per-field lang-input visibility:
+                // - show inputs that match the active language suffix (e.g. _ta or _hi) when a non-English language is active
+                // - when active language is 'en' show *_en inputs
+                // - always show non-language-specific inputs (names without language suffix)
+                document.querySelectorAll('.lang-input').forEach(inp => {
+                    try {
+                        const name = inp.name || inp.getAttribute('name') || '';
+                        // language-specific inputs end with _en/_ta/_hi
+                        if (/_(en|ta|hi)$/.test(name)) {
+                            // show only the inputs that match the active language
+                            if (new RegExp('_' + lang + '$').test(name)) {
+                                inp.style.display = '';
+                            } else {
+                                inp.style.display = 'none';
+                            }
+                        } else {
+                            // non-language-specific inputs (e.g. option_a) should remain visible
+                            inp.style.display = '';
+                        }
+                    } catch (er) { }
+                });
+
+                // refresh preview to show active language
+                if (typeof updateLivePreview === 'function') updateLivePreview();
+            }
+
+            function initLangSwitcher() {
+                // attach click handlers
+                document.querySelectorAll('.lang-btn').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const lang = (this.dataset && this.dataset.lang) || 'en';
+                        setActiveLanguage(lang);
+                    });
+                });
+
+                // initialize to whatever button is marked active or default to en
+                const initial = (document.querySelector('.lang-btn.active') && document.querySelector('.lang-btn.active')
+                    .dataset.lang) || 'en';
+                setActiveLanguage(initial);
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initLangSwitcher);
+            } else {
+                initLangSwitcher();
+            }
+        })();
+    </script>
+
+    <script>
+        // Option E toggle and preview wiring for create & edit forms
+        function wireOptionEToggle(rootSelector) {
+            const root = document.querySelector(rootSelector);
+            if (!root) return;
+            // use class-based selector so multiple instances on the page don't conflict
+            const toggle = root.querySelector('.toggle-option-e');
+            const row = root.querySelector('#option-e-row');
+            if (!toggle || !row) return;
+            toggle.addEventListener('click', function () {
+                if (row.style.display === 'none' || row.style.display === '') {
+                    row.style.display = 'block';
+                    toggle.textContent = '- Remove Option E';
+                } else {
+                    // clear inputs (clear files and text inputs)
+                    row.querySelectorAll('input').forEach(i => { if (i.type === 'file') i.value = ''; else i.value = ''; });
+                    row.style.display = 'none';
+                    toggle.textContent = '+ Add Option E';
+                }
+                if (typeof updateLivePreview === 'function') updateLivePreview();
+            });
+        }
+
+        wireOptionEToggle('#question-form');
+        wireOptionEToggle('#question-form-edit');
+        wireOptionEToggle('#question-form-edit');
+
+        // Ensure match-row add works for both forms
+        document.querySelectorAll('#add-match-row').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const container = this.closest('form').querySelector('#match-rows');
+                const div = document.createElement('div');
+                div.className = 'd-flex mb-2';
+                div.innerHTML = '<input class="form-control me-2" name="match_left[]" placeholder="Left"> <input class="form-control" name="match_right[]" placeholder="Right"> <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-match-row">&times;</button>';
+                container.appendChild(div);
+            });
+        });
+
+        // Remove-match-row handler (delegated)
+        document.addEventListener('click', function (e) {
+            if (e.target && e.target.classList && e.target.classList.contains('remove-match-row')) {
+                const row = e.target.closest('.d-flex');
+                if (row) row.remove();
+            }
+        });
+
+        // Ensure preview updates for edit form as well
+        ['input', 'change'].forEach(evt => {
+            ['#question-form', '#question-form-edit'].forEach(sel => {
+                const f = document.querySelector(sel);
+                if (!f) return;
+                f.addEventListener(evt, function (e) {
+                    if (typeof updateLivePreview === 'function') updateLivePreview();
+                }, { capture: true });
+            });
+        });
+
+        // Media visibility: show question image only for image_mcq type
+        function refreshQuestionImageVisibility() {
+            const type = (document.querySelector('#question-type') || {}).value || '';
+            const show = (type === 'image_mcq');
+            const block = document.getElementById('media-block');
+            const blockEdit = document.getElementById('media-block-edit');
+            if (block) block.style.display = show ? '' : 'none';
+            if (blockEdit) blockEdit.style.display = show ? '' : 'none';
+        }
+        document.querySelectorAll('#question-type').forEach(s => s.addEventListener('change', refreshQuestionImageVisibility));
+        // initialize
+        refreshQuestionImageVisibility();
+        // Save & Add Another for edit form
+        var saveAndAddBtnEdit = document.getElementById('save-and-add-another-btn-edit');
+        if (saveAndAddBtnEdit) {
+            saveAndAddBtnEdit.addEventListener('click', function () {
+                var hidden = document.getElementById('save_and_add_another_edit');
+                if (hidden) hidden.value = '1';
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+                document.getElementById('question-form-edit').submit();
+            });
+        }
+                                    }) ();
+    </script>
 
 <?php elseif ($action === 'edit'): ?>
-<!-- Edit Question Form -->
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-edit me-2"></i>Edit Question
-                </h5>
+    <?php if (empty($editQuestion) || !is_array($editQuestion)): ?>
+        <div class="alert alert-danger">
+            <strong>No question selected for edit.</strong>
+            <div>Please open the edit page with a valid question id.</div>
+            <div class="mt-2">
+                <a href="index.php?page=questions" class="btn btn-sm btn-primary">Back to Questions</a>
             </div>
-            <div class="card-body">
-                <form method="POST" class="needs-validation" novalidate>
-                    <input type="hidden" name="question_id" value="<?= $editQuestion['id'] ?>">
-
-                    <div class="row">
-                        <div class="col-md-4">
-                            <!-- Subject Dropdown -->
-                            <div class="mb-3">
-                                <label for="subject" class="form-label">Select Subject</label>
-                                <select class="form-select" id="subject" name="subject">
-                                    <option value="">-- Select Existing Subject --</option>
-                                    <?php foreach ($allSubjects as $s): ?>
-                                    <option value="<?= htmlspecialchars($s) ?>"
-                                        <?= ($editQuestion['subject'] == $s) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($s) ?>
-                                    </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <!-- New Subject -->
-                            <div class="mb-3">
-                                <label for="new_subject" class="form-label">Or Add New
-                                    Subject</label>
-                                <input type="text" class="form-control" id="new_subject" name="new_subject"
-                                    placeholder="Enter new subject name">
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="topic" class="form-label">Topic</label>
-                                <input type="text" class="form-control" id="topic" name="topic"
-                                    value="<?= htmlspecialchars($editQuestion['topic']) ?>" required>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="subtopic" class="form-label">Subtopic</label>
-                                <input type="text" class="form-control" id="subtopic" name="subtopic"
-                                    value="<?= htmlspecialchars($editQuestion['subtopic']) ?>">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="question_text" class="form-label">Question</label>
-                        <textarea class="form-control" id="question_text" name="question_text" rows="4"
-                            required><?= htmlspecialchars($editQuestion['question_text']) ?></textarea>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="option_a" class="form-label">Option A</label>
-                                <input type="text" class="form-control" id="option_a" name="option_a"
-                                    value="<?= htmlspecialchars($options['A'] ?? '') ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="option_b" class="form-label">Option B</label>
-                                <input type="text" class="form-control" id="option_b" name="option_b"
-                                    value="<?= htmlspecialchars($options['B'] ?? '') ?>">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="option_c" class="form-label">Option C</label>
-                                <input type="text" class="form-control" id="option_c" name="option_c"
-                                    value="<?= htmlspecialchars($options['C'] ?? '') ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="option_d" class="form-label">Option D</label>
-                                <input type="text" class="form-control" id="option_d" name="option_d"
-                                    value="<?= htmlspecialchars($options['D'] ?? '') ?>">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label for="correct_answer" class="form-label">Correct
-                                    Answer</label>
-                                <select class="form-select" id="correct_answer" name="correct_answer">
-                                    <?php foreach (['A', 'B', 'C', 'D'] as $opt): ?>
-                                    <option value="<?= $opt ?>"
-                                        <?= ($editQuestion['correct_answer'] == $opt) ? 'selected' : '' ?>>
-                                        <?= $opt ?>
-                                    </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label for="difficulty" class="form-label">Difficulty</label>
-                                <select class="form-select" id="difficulty" name="difficulty">
-                                    <?php foreach (['easy', 'medium', 'hard'] as $diff): ?>
-                                    <option value="<?= $diff ?>"
-                                        <?= ($editQuestion['difficulty'] == $diff) ? 'selected' : '' ?>>
-                                        <?= ucfirst($diff) ?>
-                                    </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label for="exam_year" class="form-label">Exam Year</label>
-                                <input type="number" class="form-control" id="exam_year" name="exam_year" min="2000"
-                                    max="2030" value="<?= htmlspecialchars($editQuestion['exam_year']) ?>">
-                            </div>
-                        </div>
-
-                        <div class="col-md-3">
-                            <div class="mb-3">
-                                <label for="source" class="form-label">Exam</label>
-                                <input type="text" class="form-control" id="source" name="source"
-                                    value="<?= htmlspecialchars($editQuestion['source']) ?>">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="explanation" class="form-label">Explanation (Optional)</label>
-                        <textarea class="form-control" id="explanation" name="explanation"
-                            rows="3"><?= htmlspecialchars($editQuestion['explanation']) ?></textarea>
-                    </div>
-
-                    <div class="form-check mb-4">
-                        <input class="form-check-input" type="checkbox" id="is_public" name="is_public"
-                            <?= $editQuestion['is_public'] ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="is_public">
-                            Make this question public (visible to all institutes)
-                        </label>
-                    </div>
-
-                    <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary"
-                            onclick="window.location.href='index.php?page=questions'">
-                            <i class="fas fa-arrow-left me-2"></i>Back to Questions
-                        </button>
-                        <div>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-check me-2"></i>Update Question
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
+            <script>
+                // Redirect back to questions list after 3 seconds to help users
+                setTimeout(function () { window.location.href = 'index.php?page=questions'; }, 3000);
+            </script>
         </div>
-    </div>
-</div>
+    <?php else: ?>
+        <!-- Edit Question Form (matches Create layout) -->
+        <?php
+        // Ensure $options is decoded
+        $options = is_string($editQuestion['options']) ? json_decode($editQuestion['options'], true) : ($editQuestion['options'] ?? []);
+        $i18n = $options['i18n'] ?? [];
 
-<?php elseif ($action === 'upload'): ?>
-<!-- Bulk Upload -->
-<div class="row justify-content-center">
-    <div class="col-lg-10">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-upload me-2"></i>Bulk Upload Questions
-                </h5>
-            </div>
-            <div class="card-body">
+        // Enhanced $getI18n that checks both dedicated columns and options->i18n
+        $getI18n = function ($lang, $field, $fallback = '') use ($editQuestion, $i18n) {
+            // For question_text, check dedicated columns first
+            if ($field === 'question_text') {
+                $columnName = 'question_text_' . $lang;
+                if (isset($editQuestion[$columnName]) && !empty(trim($editQuestion[$columnName]))) {
+                    return $editQuestion[$columnName];
+                }
+            }
 
-                <?php if (($_GET['step'] ?? '') === 'preview' && isset($_SESSION['bulk_upload_questions'])): ?>
-                <!-- Preview Step -->
-                <div class="mb-4">
-                    <h6>Preview Questions Before Import</h6>
-                    <p class="text-muted">Review the parsed questions below and click "Import All"
-                        to add them to your
-                        question bank.</p>
-                </div>
+            // Then check options->i18n
+            if (isset($i18n[$lang][$field]) && $i18n[$lang][$field] !== '') {
+                return $i18n[$lang][$field];
+            }
 
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="badge bg-info">Total Questions:
-                            <?= count($_SESSION['bulk_upload_questions']) ?></span>
-                        <div>
-                            <button class="btn btn-secondary me-2"
-                                onclick="window.location.href='index.php?page=questions&action=upload'">
-                                <i class="fas fa-arrow-left me-2"></i>Back to Upload
-                            </button>
-                            <button class="btn btn-success" id="import-questions-btn">
-                                <i class="fas fa-check me-2"></i>Import All Questions
-                            </button>
-                        </div>
+            return $fallback;
+        };
+        $optFor = function ($key, $lang) use ($options, $editQuestion) {
+            $kUp = strtoupper($key);
+            // 1) structured i18n blocks
+            if (!empty($options['i18n'][$lang]) && is_array($options['i18n'][$lang])) {
+                $langBlock = $options['i18n'][$lang];
+                // direct mapping: A => 'text'
+                if (isset($langBlock[$kUp]) && $langBlock[$kUp] !== '')
+                    return $langBlock[$kUp];
+                // nested options: options => [A => 'text' or ['text'=>..]]
+                if (isset($langBlock['options'][$kUp]) && $langBlock['options'][$kUp] !== '') {
+                    $v = $langBlock['options'][$kUp];
+                    if (is_array($v))
+                        return $v['text'] ?? (is_string($v) ? $v : '');
+                    return $v;
+                }
+                // option_A style
+                if (isset($langBlock['option_' . $kUp]) && $langBlock['option_' . $kUp] !== '')
+                    return $langBlock['option_' . $kUp];
+                // options as objects: options[A]['text']
+                if (isset($langBlock['options'][$kUp]['text']))
+                    return $langBlock['options'][$kUp]['text'];
+            }
+
+            // 2) top-level option entries (A, option_a, option_a_en etc.)
+            if (isset($options[$kUp])) {
+                $val = $options[$kUp];
+                if (is_array($val)) {
+                    if (!empty($val['text']))
+                        return $val['text'];
+                    if (!empty($val['i18n'][$lang]) && is_string($val['i18n'][$lang]))
+                        return $val['i18n'][$lang];
+                    if (!empty($val['i18n'][$lang]['text']))
+                        return $val['i18n'][$lang]['text'];
+                } else if ($val !== '')
+                    return $val;
+            }
+
+            $lower = 'option_' . strtolower($key);
+            if (isset($options[$lower])) {
+                $val = $options[$lower];
+                if (is_array($val))
+                    return $val['text'] ?? '';
+                if ($val !== '')
+                    return $val;
+            }
+
+            // language-specific top level keys (option_a_en)
+            $langKey = $lower . '_' . $lang;
+            if (isset($options[$langKey]) && $options[$langKey] !== '')
+                return $options[$langKey];
+
+            return '';
+        };
+        $optImage = function ($key) use ($options) {
+            // check direct keys: A_image, option_a_image, option_a, and nested shapes
+            $kUp = strtoupper($key);
+            if (!empty($options[$kUp . '_image']))
+                return $options[$kUp . '_image'];
+            if (!empty($options[$kUp . '_img']))
+                return $options[$kUp . '_img'];
+            $lower = 'option_' . strtolower($key) . '_image';
+            if (!empty($options[$lower]))
+                return $options[$lower];
+            // if option is object with image
+            if (!empty($options[$kUp]) && is_array($options[$kUp]) && !empty($options[$kUp]['image']))
+                return $options[$kUp]['image'];
+            if (!empty($options[$lower]) && is_array($options[$lower]) && !empty($options[$lower]['image']))
+                return $options[$lower]['image'];
+            return '';
+        };
+        $qtype = $options['type'] ?? 'text_mcq';
+        ?>
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-edit me-2"></i>Edit Question</h5>
                     </div>
-                </div>
+                    <div class="card-body">
+                        <form method="POST" class="needs-validation" novalidate id="question-form-edit"
+                            enctype="multipart/form-data">
+                            <input type="hidden" name="action" value="edit">
+                            <input type="hidden" name="question_id" value="<?= $editQuestion['id'] ?>">
+                            <!-- edit does not support Save & Add Another -->
+                            <div class="row g-3">
+                                <div class=" col-md-4">
+                                    <label class="form-label">Subject</label>
+                                    <select class="form-select" name="subject">
+                                        <option value="">Select Subject</option>
+                                        <?php foreach ($allSubjects as $s): ?>
+                                            <option value="<?= htmlspecialchars($s) ?>" <?= ($editQuestion['subject'] == $s) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($s) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div style="margin-top: 1rem;">
+                                        <div class="form-text">Or add below</div>
+                                        <input type="text" class="form-control mt-2" name="new_subject" value="">
 
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Subject</th>
-                                <th>Topic</th>
-                                <th>Question</th>
-                                <th>Options</th>
-                                <th>Answer</th>
-                                <th>Difficulty</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($_SESSION['bulk_upload_questions'] as $index => $question): ?>
-                            <tr>
-                                <td><?= $index + 1 ?></td>
-                                <td><?= htmlspecialchars($question['subject']) ?></td>
-                                <td><?= htmlspecialchars($question['topic']) ?></td>
-                                <td><?= htmlspecialchars(substr($question['question_text'], 0, 100)) ?><?= strlen($question['question_text']) > 100 ? '...' : '' ?>
-                                </td>
-                                <td>
-                                    <small>
-                                        A:
-                                        <?= htmlspecialchars(substr($question['option_a'], 0, 30)) ?><br>
-                                        B:
-                                        <?= htmlspecialchars(substr($question['option_b'], 0, 30)) ?><br>
-                                        C:
-                                        <?= htmlspecialchars(substr($question['option_c'], 0, 30)) ?><br>
-                                        D:
-                                        <?= htmlspecialchars(substr($question['option_d'], 0, 30)) ?>
-                                    </small>
-                                </td>
-                                <td><span class="badge bg-primary"><?= $question['correct_answer'] ?></span>
-                                </td>
-                                <td><span
-                                        class="badge bg-<?= $question['difficulty'] === 'easy' ? 'success' : ($question['difficulty'] === 'medium' ? 'warning' : 'danger') ?>"><?= ucfirst($question['difficulty']) ?></span>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+                                    </div>
+                                </div>
 
-                <script>
-                document.getElementById('import-questions-btn').addEventListener('click',
-                    function() {
-                        if (!confirm('Are you sure you want to import all these questions?'))
-                            return;
+                                <div class="col-md-4 d-flex flex-column justify-content-between" style="height: 100%;">
+                                    <div>
+                                        <label class="form-label">Topic</label>
+                                        <input class="form-control" name="topic"
+                                            value="<?= htmlspecialchars($editQuestion['topic']) ?>">
+                                    </div>
+                                    <div class="mt-3">
+                                        <label class="form-label mb-1">Subtopic</label>
+                                        <input type="text" class="form-control" name="subtopic" placeholder="Subtopic"
+                                            value="<?= htmlspecialchars($editQuestion['subtopic'] ?? '') ?>">
+                                    </div>
+                                </div>
 
-                        this.disabled = true;
-                        this.innerHTML =
-                            '<i class="fas fa-spinner fa-spin me-2"></i>Importing...';
+                                <div class=" col-md-4">
+                                    <label class="form-label">Question Type</label>
+                                    <select class="form-select" id="question-type" name="question_type">
+                                        <option value="text_mcq" <?= $qtype === 'text_mcq' ? 'selected' : '' ?>>Text-Based MCQ
+                                            (Single Correct)</option>
+                                        <option value="image_mcq" <?= $qtype === 'image_mcq' ? 'selected' : '' ?>>Image-Based MCQ
+                                        </option>
+                                        <option value="passage" <?= $qtype === 'passage' ? 'selected' : '' ?>>Passage-Based
+                                            /
+                                            Comprehension</option>
+                                        <option value="fill_blank" <?= $qtype === 'fill_blank' ? 'selected' : '' ?>>Fill in
+                                            the
+                                            Blanks</option>
+                                        <option value="match" <?= $qtype === 'match' ? 'selected' : '' ?>>Match the
+                                            Following
+                                        </option>
+                                        <option value="assertion" <?= $qtype === 'assertion' ? 'selected' : '' ?>>Assertion
+                                            &
+                                            Reasoning</option>
+                                        <option value="true_false" <?= $qtype === 'true_false' ? 'selected' : '' ?>>True /
+                                            False
+                                        </option>
+                                        <option value="numerical" <?= $qtype === 'numerical' ? 'selected' : '' ?>>Numerical
+                                        </option>
+                                        <option value="multi_correct" <?= $qtype === 'multi_correct' ? 'selected' : '' ?>>Multiple
+                                            Correct Answers (Multi-select)</option>
+                                        <option value="audio" <?= $qtype === 'audio' ? 'selected' : '' ?>>Audio-Based
+                                            Question
+                                        </option>
+                                    </select>
+                                </div>
 
-                        fetch('index.php?page=questions&action=import_questions', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/x-www-form-urlencoded'
-                                }
-                            })
-                            .then(async (response) => {
-                                const text = await response.text();
-                                try {
-                                    return JSON.parse(text);
-                                } catch (err) {
-                                    throw new Error(text || 'Invalid server response');
-                                }
-                            })
-                            .then(data => {
-                                if (data.success) {
-                                    alert(data.message);
-                                    if (data.redirect) {
-                                        window.location.href = data.redirect;
+                                <div class="col-12" id="passage-block" style="display:none;">
+                                    <label class="form-label">Passage</label>
+                                    <textarea class="form-control" name="passage"
+                                        rows="4"><?= htmlspecialchars($options['passage'] ?? '') ?></textarea>
+                                </div>
+
+                                <div class="col-12 mb-2">
+                                    <div class="btn-group" role="group" aria-label="Language switcher">
+                                        <button type="button" class="btn btn-outline-primary lang-btn active"
+                                            data-lang="en">English</button>
+                                        <button type="button" class="btn btn-outline-secondary lang-btn"
+                                            data-lang="ta">Tamil</button>
+                                        <button type="button" class="btn btn-outline-secondary lang-btn"
+                                            data-lang="hi">Hindi</button>
+                                    </div>
+                                    <div class="form-text">Type translations per language. Switching preserves your inputs.
+                                    </div>
+                                </div>
+
+                                <!-- Edit media block: placed above multilingual question text fields -->
+                                <div class="col-12 mb-3" id="media-block-edit" style="display:none;">
+                                    <label class="form-label">Upload Image / Audio</label>
+                                    <input type="file" class="form-control mb-2" name="image" accept="image/*">
+                                    <input type="file" class="form-control" name="audio" accept="audio/*">
+                                    <?php if (!empty($options['image'])): ?>
+                                        <div class="mt-2"><img src="<?= htmlspecialchars($options['image']) ?>"
+                                                style="max-width:220px; max-height:140px;"></div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Left: question text, question image, match and options (prefilled) -->
+                                <div class="col-md-7">
+                                    <div class="lang-block" data-lang="en">
+                                        <label class="form-label">Question Text (English)</label>
+                                        <textarea class="form-control lang-input" id="question_text_en" name="question_text_en"
+                                            rows="3"><?= htmlspecialchars($getI18n('en', 'question_text', $editQuestion['question_text'])) ?></textarea>
+                                    </div>
+                                    <div class="lang-block" data-lang="ta">
+                                        <label class="form-label">Question Text (Tamil)</label>
+                                        <textarea class="form-control lang-input" id="question_text_ta" name="question_text_ta"
+                                            rows="3"><?= htmlspecialchars($getI18n('ta', 'question_text', '')) ?></textarea>
+                                    </div>
+                                    <div class="lang-block" data-lang="hi">
+                                        <label class="form-label">Question Text (Hindi)</label>
+                                        <textarea class="form-control lang-input" id="question_text_hi" name="question_text_hi"
+                                            rows="3"><?= htmlspecialchars($getI18n('hi', 'question_text', '')) ?></textarea>
+                                    </div>
+
+                                    <!-- media-block-edit removed from here (moved above language inputs) -->
+
+                                    <div id="match-block" style="display:<?= $qtype === 'match' ? 'block' : 'none' ?>;"
+                                        class="mb-3">
+                                        <label class="form-label">Match Pairs</label>
+                                        <div id="match-rows">
+                                            <?php if (!empty($options['match']) && is_array($options['match'])):
+                                                foreach ($options['match'] as $pair): ?>
+                                                    <div class="d-flex mb-2">
+                                                        <input class="form-control me-2" name="match_left[]"
+                                                            value="<?= htmlspecialchars($pair[0] ?? '') ?>" placeholder="Left">
+                                                        <input class="form-control" name="match_right[]"
+                                                            value="<?= htmlspecialchars($pair[1] ?? '') ?>" placeholder="Right">
+                                                        <button type="button"
+                                                            class="btn btn-sm btn-outline-danger ms-2 remove-match-row">&times;</button>
+                                                    </div>
+                                                <?php endforeach; else: ?>
+                                                <div class="d-flex mb-2">
+                                                    <input class="form-control me-2" name="match_left[]" placeholder="Left">
+                                                    <input class="form-control" name="match_right[]" placeholder="Right">
+                                                    <button type="button"
+                                                        class="btn btn-sm btn-outline-danger ms-2 remove-match-row">&times;</button>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="add-match-row">Add
+                                            Row</button>
+                                    </div>
+
+                                    <div id="options-block">
+                                        <label class="form-label">Options (A - D)</label>
+                                        <div class="row">
+                                            <div class="col-6 mb-3">
+                                                <label class="form-label small">Option A</label>
+                                                <input class="form-control mb-1 lang-input" name="option_a_en"
+                                                    placeholder="Option A (English)"
+                                                    value="<?= htmlspecialchars($optFor('A', 'en')) ?>">
+                                                <input class="form-control mb-1 lang-input" name="option_a_ta"
+                                                    placeholder="Option A (Tamil)"
+                                                    value="<?= htmlspecialchars($optFor('A', 'ta')) ?>">
+                                                <input class="form-control mb-1 lang-input" name="option_a_hi"
+                                                    placeholder="Option A (Hindi)"
+                                                    value="<?= htmlspecialchars($optFor('A', 'hi')) ?>">
+                                                <input type="file" class="form-control form-control-sm option-image-input"
+                                                    name="option_a_image" accept="image/*" />
+                                                <?php if ($img = $optImage('A')): ?>
+                                                    <div class="mt-2"><img src="<?= htmlspecialchars($img) ?>"
+                                                            style="max-width:180px; max-height:120px;"></div><?php endif; ?>
+                                            </div>
+                                            <div class="col-6 mb-3">
+                                                <label class="form-label small">Option B</label>
+                                                <input class="form-control mb-1 lang-input" name="option_b_en"
+                                                    placeholder="Option B (English)"
+                                                    value="<?= htmlspecialchars($optFor('B', 'en')) ?>">
+                                                <input class="form-control mb-1 lang-input" name="option_b_ta"
+                                                    placeholder="Option B (Tamil)"
+                                                    value="<?= htmlspecialchars($optFor('B', 'ta')) ?>">
+                                                <input class="form-control mb-1 lang-input" name="option_b_hi"
+                                                    placeholder="Option B (Hindi)"
+                                                    value="<?= htmlspecialchars($optFor('B', 'hi')) ?>">
+                                                <input type="file" class="form-control form-control-sm option-image-input"
+                                                    name="option_b_image" accept="image/*" />
+                                                <?php if ($img = $optImage('B')): ?>
+                                                    <div class="mt-2"><img src="<?= htmlspecialchars($img) ?>"
+                                                            style="max-width:180px; max-height:120px;"></div><?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-6 mb-3">
+                                                <label class="form-label small">Option C</label>
+                                                <input class="form-control mb-1 lang-input" name="option_c_en"
+                                                    placeholder="Option C (English)"
+                                                    value="<?= htmlspecialchars($optFor('C', 'en')) ?>">
+                                                <input class="form-control mb-1 lang-input" name="option_c_ta"
+                                                    placeholder="Option C (Tamil)"
+                                                    value="<?= htmlspecialchars($optFor('C', 'ta')) ?>">
+                                                <input class="form-control mb-1 lang-input" name="option_c_hi"
+                                                    placeholder="Option C (Hindi)"
+                                                    value="<?= htmlspecialchars($optFor('C', 'hi')) ?>">
+                                                <input type="file" class="form-control form-control-sm option-image-input"
+                                                    name="option_c_image" accept="image/*" />
+                                                <?php if ($img = $optImage('C')): ?>
+                                                    <div class="mt-2"><img src="<?= htmlspecialchars($img) ?>"
+                                                            style="max-width:180px; max-height:120px;"></div><?php endif; ?>
+                                            </div>
+                                            <div class="col-6 mb-3">
+                                                <label class="form-label small">Option D</label>
+                                                <input class="form-control mb-1 lang-input" name="option_d_en"
+                                                    placeholder="Option D (English)"
+                                                    value="<?= htmlspecialchars($optFor('D', 'en')) ?>">
+                                                <input class="form-control mb-1 lang-input" name="option_d_ta"
+                                                    placeholder="Option D (Tamil)"
+                                                    value="<?= htmlspecialchars($optFor('D', 'ta')) ?>">
+                                                <input class="form-control mb-1 lang-input" name="option_d_hi"
+                                                    placeholder="Option D (Hindi)"
+                                                    value="<?= htmlspecialchars($optFor('D', 'hi')) ?>">
+                                                <input type="file" class="form-control form-control-sm option-image-input"
+                                                    name="option_d_image" accept="image/*" />
+                                                <?php if ($img = $optImage('D')): ?>
+                                                    <div class="mt-2"><img src="<?= htmlspecialchars($img) ?>"
+                                                            style="max-width:180px; max-height:120px;"></div><?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php
+                                    // Detect whether Option E exists in various shapes (bulk import may store fields differently)
+                                    $hasOptionE = false;
+                                    if (!empty($optFor('E', 'en')) || !empty($optFor('E', 'ta')) || !empty($optFor('E', 'hi')) || !empty($optImage('E'))) {
+                                        $hasOptionE = true;
                                     }
-                                } else {
-                                    alert('Error: ' + data.error);
-                                }
-                            })
-                            .catch(error => {
-                                alert('Network error: ' + error.message);
-                            })
-                            .finally(() => {
-                                this.disabled = false;
-                                this.innerHTML =
-                                    '<i class="fas fa-check me-2"></i>Import All Questions';
-                            });
-                    });
-                </script>
-
-                <?php else: ?>
-                <!-- Upload Step -->
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Upload Methods</h6>
-                        <div class="list-group mb-4">
-                            <div class="list-group-item d-flex justify-content-between align-items-start">
-                                <div class="ms-2 me-auto">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1">Excel/CSV Upload</h6>
-                                        <small>Recommended</small>
-                                    </div>
-                                    <p class="mb-1">Upload .xlsx or .csv files with question data
-                                    </p>
-                                    <small>Best for large datasets</small>
-                                </div>
-                            </div>
-                            <div class="list-group-item d-flex justify-content-between align-items-start">
-                                <div class="ms-2 me-auto">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1">Text Import</h6>
-                                        <small>Manual</small>
-                                    </div>
-                                    <p class="mb-1">Copy-paste questions in structured format</p>
-                                    <small>For quick manual entry</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <h6>Upload Area</h6>
-                        <div class="border border-dashed border-primary rounded p-5 text-center" id="upload-area">
-                            <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
-                            <h5>Drag & Drop Files Here</h5>
-                            <p class="text-muted">or click to browse</p>
-                            <input type="file" id="file-input" accept=".xlsx,.csv" style="display: none;">
-                            <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
-                                <i class="fas fa-file me-2"></i>Choose Files
-                            </button>
-                        </div>
-
-                        <div class="mt-3">
-                            <small class="text-muted">
-                                Supported formats: .xlsx, .csv<br>
-                                Maximum file size: 10MB
-                            </small>
-                        </div>
-                    </div>
-                </div>
-
-                <hr>
-
-                <!-- Template Download -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <h6>Template & Instructions</h6>
-                        <div class="bg-light p-3 rounded">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <strong>Excel Template (.xlsx)</strong>
-                                            <br><small class="text-muted">Professional format with
-                                                company header & serial numbers</small>
+                                    // Check common top-level keys that bulk import may produce
+                                    $candidates = ['option_e', 'option_e_en', 'option_e_ta', 'option_e_hi', 'optionE', 'E', 'e'];
+                                    foreach ($candidates as $k) {
+                                        if (!$hasOptionE && isset($editQuestion[$k]) && trim((string) $editQuestion[$k]) !== '') {
+                                            $hasOptionE = true;
+                                            break;
+                                        }
+                                    }
+                                    // Also check $options array shapes not caught by optFor
+                                    if (!$hasOptionE) {
+                                        if (!empty($options['E']) || !empty($options['option_e']) || (!empty($options['options']) && !empty($options['options']['E']))) {
+                                            $hasOptionE = true;
+                                        }
+                                    }
+                                    ?>
+                                    <div class="row" id="option-e-row" style="display:<?= $hasOptionE ? 'block' : 'none' ?>;">
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label small">Option E</label>
+                                            <input class="form-control mb-1 lang-input" name="option_e_en"
+                                                placeholder="Option E (English)"
+                                                value="<?= htmlspecialchars($optFor('E', 'en')) ?>">
+                                            <input class="form-control mb-1 lang-input" name="option_e_ta"
+                                                placeholder="Option E (Tamil)"
+                                                value="<?= htmlspecialchars($optFor('E', 'ta')) ?>">
+                                            <input class="form-control mb-1 lang-input" name="option_e_hi"
+                                                placeholder="Option E (Hindi)"
+                                                value="<?= htmlspecialchars($optFor('E', 'hi')) ?>">
+                                            <input type="file" class="form-control form-control-sm option-image-input"
+                                                name="option_e_image" accept="image/*" />
+                                            <?php if ($img = $optImage('E')): ?>
+                                                <div class="mt-2"><img src="<?= htmlspecialchars($img) ?>"
+                                                        style="max-width:180px; max-height:120px;"></div><?php endif; ?>
                                         </div>
-                                        <button class="btn btn-success btn-sm"
-                                            onclick="window.location.href='index.php?page=questions&action=download_template&format=excel'">
-                                            <i class="fas fa-file-excel me-2"></i>Excel
-                                        </button>
+                                    </div>
+                                    <div class="mb-2">
+                                        <button type="button" id="toggle-option-e"
+                                            class="btn btn-sm btn-outline-secondary"><?php echo ($hasOptionE ? '- Remove Option E' : '+ Add Option E'); ?></button>
+                                    </div>
+                                    <!-- Correct answer selector for edit -->
+                                    <div id="correct-answer-block-edit" class="mt-2" style="display:block;">
+                                        <label class="form-label small">Correct Answer</label>
+                                        <select class="form-select" name="correct_answer">
+                                            <option value="">Select Correct Answer</option>
+                                            <option value="A" <?= (isset($editQuestion['correct_answer']) && trim($editQuestion['correct_answer']) === 'A') ? 'selected' : '' ?>>A</option>
+                                            <option value="B" <?= (isset($editQuestion['correct_answer']) && trim($editQuestion['correct_answer']) === 'B') ? 'selected' : '' ?>>B</option>
+                                            <option value="C" <?= (isset($editQuestion['correct_answer']) && trim($editQuestion['correct_answer']) === 'C') ? 'selected' : '' ?>>C</option>
+                                            <option value="D" <?= (isset($editQuestion['correct_answer']) && trim($editQuestion['correct_answer']) === 'D') ? 'selected' : '' ?>>D</option>
+                                            <option value="E" <?= (isset($editQuestion['correct_answer']) && trim($editQuestion['correct_answer']) === 'E') ? 'selected' : '' ?>>E</option>
+                                        </select>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <strong>CSV Template (.csv)</strong>
-                                            <br><small class="text-muted">Simple format compatible
-                                                with all spreadsheet apps</small>
+                                <!-- Right: Live preview -->
+                                <div class="col-md-5 d-flex align-items-start">
+                                    <div class="card mt-1 w-100" style="height: 500px;">
+                                        <div class="card-header"><strong>Live Preview</strong></div>
+                                        <div class="card-body" id="live-preview" style="height: 300px; overflow-y: auto;">
+                                            <div id="live-preview-content">Fill the form to see live preview here.</div>
                                         </div>
-                                        <button class="btn btn-outline-success btn-sm"
-                                            onclick="window.location.href='index.php?page=questions&action=download_template&format=csv'">
-                                            <i class="fas fa-file-csv me-2"></i>CSV
-                                        </button>
                                     </div>
                                 </div>
                             </div>
-                            <div class="mt-3 p-2 bg-warning bg-opacity-10 rounded">
-                                <small class="text-warning">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    <strong>New Format:</strong> Templates now include a company
-                                    name row and S.No column for better organization. Both old and
-                                    new formats are supported for upload.
-                                </small>
+                            <script>
+                                // Edit-form live preview implementation (scoped to #question-form-edit)
+                                (function () {
+                                    function escapeHtml(str) {
+                                        return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                    }
+
+                                    function renderOptionsForPreview(optsObj) {
+                                        // optsObj is a map like {A: 'text', B: 'text', image: 'url', audio: 'url'}
+                                        var html = '<ul class="list-group list-group-flush">';
+                                        ['A', 'B', 'C', 'D', 'E'].forEach(function (k) {
+                                            if (optsObj && optsObj[k]) {
+                                                html += '<li class="list-group-item">' + escapeHtml(optsObj[k]) + (optsObj[k + '_image'] ? (' <img src="' + escapeHtml(optsObj[k + '_image']) + '" style="max-height:40px; margin-left:8px;">') : '') + '</li>';
+                                            }
+                                        });
+                                        html += '</ul>';
+                                        return html;
+                                    }
+
+                                    function getActiveLang() {
+                                        var btn = document.querySelector('#question-form-edit .lang-btn.active') || document.querySelector('.lang-btn.active');
+                                        return (btn && btn.dataset && btn.dataset.lang) ? btn.dataset.lang : 'en';
+                                    }
+
+                                    function buildPreviewHtmlEdit() {
+                                        var form = document.getElementById('question-form-edit');
+                                        if (!form) return '<div>No form found</div>';
+
+                                        var subject = (form.querySelector('[name="subject"]') || {}).value || '';
+                                        var topic = (form.querySelector('[name="topic"]') || {}).value || '';
+                                        var activeLang = getActiveLang();
+
+                                        var enText = (form.querySelector('[name="question_text_en"]') || {}).value || '';
+                                        var activeText = (form.querySelector('[name="question_text_' + activeLang + '"]') || {}).value || '';
+
+                                        var optsEn = {}, optsLang = {};
+                                        ['A', 'B', 'C', 'D', 'E'].forEach(function (k) {
+                                            var en = form.querySelector('[name="option_' + k.toLowerCase() + '_en"]');
+                                            var lang = form.querySelector('[name="option_' + k.toLowerCase() + '_' + activeLang + '"]');
+                                            if (en && en.value) optsEn[k] = en.value;
+                                            if (lang && lang.value) optsLang[k] = lang.value;
+                                        });
+
+                                        // attach images if present (file inputs show files)
+                                        ['a', 'b', 'c', 'd', 'e'].forEach(function (ch) {
+                                            var fi = form.querySelector('[name="option_' + ch + '_image"]');
+                                            if (fi && fi.files && fi.files[0]) {
+                                                var url = URL.createObjectURL(fi.files[0]);
+                                                optsEn[ch.toUpperCase() + '_image'] = url;
+                                                optsLang[ch.toUpperCase() + '_image'] = url;
+                                            }
+                                        });
+
+                                        var qimg = form.querySelector('[name="image"]');
+                                        var qaud = form.querySelector('[name="audio"]');
+                                        var qimgUrl = (qimg && qimg.files && qimg.files[0]) ? URL.createObjectURL(qimg.files[0]) : (window._edit_prefilled_qimage || '');
+                                        var qaudUrl = (qaud && qaud.files && qaud.files[0]) ? URL.createObjectURL(qaud.files[0]) : (window._edit_prefilled_qaud || '');
+
+                                        var html = '';
+                                        html += '<div><strong>' + escapeHtml(subject) + '</strong> <small class="text-muted">' + escapeHtml(topic) + '</small></div>';
+
+                                        var displayText = (activeLang === 'en') ? enText : (activeText || enText);
+                                        if (displayText) html += '<h6 class="mt-2">' + escapeHtml(displayText) + '</h6>';
+
+                                        if (qimgUrl) html += '<div class="mb-2"><img src="' + escapeHtml(qimgUrl) + '" style="max-width:100%; height:auto"></div>';
+                                        if (qaudUrl) html += '<div class="mb-2"><audio controls src="' + escapeHtml(qaudUrl) + '"></audio></div>';
+
+                                        // Choose active options, fallback to English
+                                        var chosen = (Object.keys(optsLang).length > 0) ? optsLang : optsEn;
+                                        if (Object.keys(chosen).length > 0) html += renderOptionsForPreview(chosen);
+
+                                        var correct = (form.querySelector('[name="correct_answer"]') || {}).value || '';
+                                        if (correct) html += '<div class="mt-2"><strong>Correct:</strong> ' + escapeHtml(correct) + '</div>';
+
+                                        return html;
+                                    }
+
+                                    function updateLivePreview() {
+                                        var cont = document.querySelector('#question-form-edit #live-preview-content') || document.getElementById('live-preview-content');
+                                        if (!cont) return;
+                                        cont.innerHTML = buildPreviewHtmlEdit();
+                                    }
+
+                                    // init language switcher for edit form: show only active lang inputs
+                                    function setActiveLanguageEdit(lang) {
+                                        document.querySelectorAll('#question-form-edit .lang-btn').forEach(function (b) {
+                                            if (b.dataset && b.dataset.lang === lang) b.classList.add('active'); else b.classList.remove('active');
+                                        });
+
+                                        // show/hide lang-inputs inside this form and lang-block containers
+                                        document.querySelectorAll('#question-form-edit .lang-input').forEach(function (inp) {
+                                            var name = inp.name || '';
+                                            if (!name) return;
+                                            if (/_en$/.test(name)) inp.style.display = (lang === 'en') ? '' : 'none';
+                                            else if (/_ta$/.test(name)) inp.style.display = (lang === 'ta') ? '' : 'none';
+                                            else if (/_hi$/.test(name)) inp.style.display = (lang === 'hi') ? '' : 'none';
+                                            else inp.style.display = '';
+                                        });
+                                        // hide/show the larger lang-block sections
+                                        document.querySelectorAll('#question-form-edit .lang-block').forEach(function (lb) {
+                                            if (lb.dataset && lb.dataset.lang === lang) lb.style.display = ''; else lb.style.display = 'none';
+                                        });
+
+                                        updateLivePreview();
+                                    }
+
+                                    // attach handlers once DOM ready
+                                    document.addEventListener('DOMContentLoaded', function () {
+                                        // set initial active language from button class
+                                        var initial = (document.querySelector('#question-form-edit .lang-btn.active') && document.querySelector('#question-form-edit .lang-btn.active').dataset.lang) || 'en';
+                                        setActiveLanguageEdit(initial);
+
+                                        // attach click listeners on edit lang buttons
+                                        document.querySelectorAll('#question-form-edit .lang-btn').forEach(function (btn) {
+                                            btn.addEventListener('click', function () { setActiveLanguageEdit(btn.dataset.lang); });
+                                        });
+
+                                        // wire preview triggers
+                                        var f = document.getElementById('question-form-edit');
+                                        if (f) {
+                                            ['input', 'change'].forEach(function (evt) {
+                                                f.addEventListener(evt, function (e) { updateLivePreview(); }, { capture: true });
+                                            });
+                                        }
+
+                                        // show/hide media upload for edit depending on question_type
+                                        function updateFormByTypeEdit() {
+                                            var type = (document.getElementById('question-type') || {}).value || '';
+                                            var showMedia = (type === 'image_mcq' || type === 'audio');
+                                            var mediaBlock = document.getElementById('media-block-edit');
+                                            if (mediaBlock) mediaBlock.style.display = showMedia ? '' : 'none';
+
+                                            // Option image inputs should only be visible for image_mcq
+                                            document.querySelectorAll('#question-form-edit .option-image-input').forEach(function (el) {
+                                                el.style.display = (type === 'image_mcq') ? '' : 'none';
+                                            });
+                                        }
+                                        document.getElementById('question-type').addEventListener('change', updateFormByTypeEdit);
+                                        updateFormByTypeEdit();
+
+                                        // Option E toggle wiring
+                                        (function () {
+                                            var toggle = document.getElementById('toggle-option-e');
+                                            var row = document.getElementById('option-e-row');
+                                            if (toggle && row) {
+                                                toggle.addEventListener('click', function () {
+                                                    if (row.style.display === 'none' || row.style.display === '') {
+                                                        row.style.display = 'block';
+                                                        toggle.textContent = '- Remove Option E';
+                                                    } else {
+                                                        // clear fields when hiding
+                                                        row.querySelectorAll('input').forEach(function (i) { if (i.type !== 'file') i.value = ''; });
+                                                        row.style.display = 'none';
+                                                        toggle.textContent = '+ Add Option E';
+                                                    }
+                                                    updateLivePreview();
+                                                });
+                                            }
+                                        })();
+
+                                        // initial update
+                                        setTimeout(updateLivePreview, 50);
+                                    });
+
+                                    // expose for external calls
+                                    window.buildPreviewHtmlEdit = buildPreviewHtmlEdit;
+                                    window.updateLivePreview = updateLivePreview;
+                                })();
+                            </script>
+
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Difficulty</label>
+                                    <select class="form-select" name="difficulty">
+                                        <option value="easy" <?= $editQuestion['difficulty'] === 'easy' ? 'selected' : '' ?>>
+                                            Easy
+                                        </option>
+                                        <option value="medium" <?= $editQuestion['difficulty'] === 'medium' ? 'selected' : '' ?>>
+                                            Medium</option>
+                                        <option value="hard" <?= $editQuestion['difficulty'] === 'hard' ? 'selected' : '' ?>>
+                                            Hard
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Exam Year</label>
+                                    <input class="form-control" name="exam_year"
+                                        value="<?= htmlspecialchars($editQuestion['exam_year']) ?>">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Source / Exam</label>
+                                    <input class="form-control" name="source"
+                                        value="<?= htmlspecialchars($editQuestion['source']) ?>">
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                <hr>
-
-                <!-- Text Import -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <h6>Text Import</h6>
-                        <p class="text-muted">Paste questions in the following format:</p>
-                        <div class="bg-light p-3 rounded mb-3">
-                            <small>
-                                <strong>Example format:</strong><br>
-                                1. With reference to the writs issued by the Courts in India,
-                                consider the following
-                                statements:<br><br>
-                                1. Mandamus will not lie against a private organization unless it is
-                                entrusted with a
-                                public duty.<br>
-                                2. Mandamus will not lie against a Company even though it may be a
-                                Government
-                                Company.<br>
-                                3. Any public minded person can be a petitioner to move the Court to
-                                obtain the writ of
-                                Quo Warranto.<br><br>
-                                Which of the statements given above are correct?<br><br>
-                                A) 1 and 2 only<br>
-                                B) 2 and 3 only<br>
-                                C) 1 and 3 only<br>
-                                D) 1, 2 and 3<br>
-                                Answer: C<br>
-                                Explanation: Statement 1 is correct, Statement 2 is incorrect,
-                                Statement 3 is
-                                correct<br><br>
-
-                                2. In the series: 2, 6, 12, 20, 30, ? What comes next?<br>
-                                A) 42<br>
-                                B) 40<br>
-                                C) 36<br>
-                                D) 48<br>
-                                Answer: A<br>
-                            </small>
-                        </div>
-
-                        <form id="text-import-form">
-                            <div class="mb-3">
-                                <label for="text-content" class="form-label">Paste Questions
-                                    Here</label>
-                                <textarea class="form-control" id="text-content" name="text_content" rows="10"
-                                    placeholder="Paste your questions here in the format shown above..."></textarea>
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <label class="form-label">Explanation</label>
+                                    <textarea class="form-control" name="explanation"
+                                        rows="3"><?= htmlspecialchars($editQuestion['explanation']) ?></textarea>
+                                </div>
                             </div>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-upload me-2"></i>Import Text
-                            </button>
+
+                            <div class="col-12 d-flex justify-content-between align-items-center mt-3">
+                                <div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="is_public" name="is_public"
+                                            <?= $editQuestion['is_public'] ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="is_public">Public</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-secondary me-2"
+                                        onclick="window.location.href='index.php?page=questions'">Cancel</button>
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-check me-2"></i>Update
+                                        Question</button>
+                                </div>
+                            </div>
+
                         </form>
                     </div>
                 </div>
+            </div>
+        </div>
+    <?php endif; ?>
 
-                <script>
-                // File upload handling
-                const uploadArea = document.getElementById('upload-area');
+<?php elseif ($action === 'upload'): ?>
+    <!-- Bulk Upload -->
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"> <i class="fas fa-upload me-2"></i>Bulk Upload Questions
+                    </h5>
+                </div>
+                <div class="card-body">
 
-                // Drag and drop handlers
-                uploadArea.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    uploadArea.classList.add('border-success');
-                });
+                    <?php if (($_GET['step'] ?? '') === 'preview' && isset($_SESSION['bulk_upload_questions'])): ?>
+                        <!-- Preview Step -->
+                        <div class="mb-4">
+                            <h6>Preview Questions Before Import</h6>
+                            <p class="text-muted">Review the parsed questions below and click "Import All"
+                                to add them to your
+                                question bank.</p>
+                        </div>
 
-                uploadArea.addEventListener('dragleave', function(e) {
-                    e.preventDefault();
-                    uploadArea.classList.remove('border-success');
-                });
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class=" badge bg-info">Total Questions:
+                                    <?= count($_SESSION['bulk_upload_questions']) ?></span>
+                                <div>
+                                    <button class="btn btn-secondary me-2"
+                                        onclick="window.location.href='index.php?page=questions&action=upload'">
+                                        <i class="fas fa-arrow-left me-2"></i>Back to Upload
+                                    </button>
+                                    <button class=" btn btn-success" id="import-questions-btn">
+                                        <i class="fas fa-check me-2"></i>Import All Questions
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                uploadArea.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    uploadArea.classList.remove('border-success');
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Subject</th>
+                                        <th>Topic</th>
+                                        <th>Question</th>
+                                        <th>Options</th>
+                                        <th>Answer</th>
+                                        <th>Difficulty</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    // robust helper for preview rows: prefer Tamil/Hindi if available, but fall back
+                                    // to English and multiple shapes that may be present after parsing/import.
+                                    $previewOpt = function ($question, $opt) {
+                                        $k = strtoupper($opt);
 
-                    const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                        handleFileUpload(files[0]);
-                    }
-                });
+                                        // 1) i18n block (common shape)
+                                        if (!empty($question['i18n']['ta'][$k]))
+                                            return $question['i18n']['ta'][$k];
+                                        if (!empty($question['i18n']['hi'][$k]))
+                                            return $question['i18n']['hi'][$k];
+                                        if (!empty($question['i18n']['en'][$k]))
+                                            return $question['i18n']['en'][$k];
 
-                // Delegate change event so it still works if input is re-rendered
-                document.addEventListener('change', function(e) {
-                    if (e.target && e.target.id === 'file-input' && e.target.files.length > 0) {
-                        handleFileUpload(e.target.files[0]);
-                    }
-                });
+                                        // 2) options top-level as stored by importQuestionsToDatabase (options JSON may be in $question['options'] or option_A fields)
+                                        // If parser kept flat keys like option_a, option_a_en, option_a_ta
+                                        $low = 'option_' . strtolower($opt);
+                                        if (!empty($question[$low . '_ta']))
+                                            return $question[$low . '_ta'];
+                                        if (!empty($question[$low . '_hi']))
+                                            return $question[$low . '_hi'];
+                                        if (!empty($question[$low . '_en']))
+                                            return $question[$low . '_en'];
+                                        if (!empty($question[$low]))
+                                            return $question[$low];
 
-                function handleFileUpload(file) {
-                    // Validate file
-                    const allowedTypes = [
-                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        'text/csv'
-                    ];
-                    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|csv)$/i)) {
-                        alert('Please upload only Excel (.xlsx) or CSV (.csv) files');
-                        return;
-                    }
+                                        // 3) options JSON object (sometimes kept as nested 'options' or 'options' key in parsed row)
+                                        if (!empty($question['options']) && is_array($question['options'])) {
+                                            // A/B keys
+                                            if (!empty($question['options'][$k])) {
+                                                $val = $question['options'][$k];
+                                                if (is_array($val)) {
+                                                    return $val['text'] ?? $val['label'] ?? '';
+                                                }
+                                                return (string) $val;
+                                            }
+                                            // option_A_image or A_image not used here
+                                            // i18n inside options
+                                            if (!empty($question['options']['i18n']['ta'][$k]))
+                                                return $question['options']['i18n']['ta'][$k];
+                                            if (!empty($question['options']['i18n']['hi'][$k]))
+                                                return $question['options']['i18n']['hi'][$k];
+                                            if (!empty($question['options']['i18n']['en'][$k]))
+                                                return $question['options']['i18n']['en'][$k];
+                                        }
 
-                    if (file.size > 10 * 1024 * 1024) {
-                        alert('File size must be less than 10MB');
-                        return;
-                    }
+                                        // As a last resort, return empty string
+                                        return '';
+                                    };
+                                    foreach ($_SESSION['bulk_upload_questions'] as $index => $question): ?>
+                                        <tr>
+                                            <td>
+                                                <?= $index + 1 ?>
+                                            </td>
+                                            <td>
+                                                <?= htmlspecialchars($question['subject']) ?>
+                                            </td>
+                                            <td>
+                                                <?= htmlspecialchars($question['topic']) ?>
+                                            </td>
+                                            <td>
+                                                <?= htmlspecialchars(substr($question['question_text'], 0, 100)) ?>
+                                                <?= strlen($question['question_text']) > 100 ? '...' : '' ?>
+                                                <?php if (!empty($question['i18n']['ta']['question_text']) || !empty($question['i18n']['hi']['question_text'])): ?>
+                                                    <div class="small text-muted mt-1">
+                                                        <?php if (!empty($question['i18n']['ta']['question_text'])): ?>
+                                                            <div><strong>TA:</strong>
+                                                                <?= htmlspecialchars(substr($question['i18n']['ta']['question_text'], 0, 80)) ?>
+                                                                <?= strlen($question['i18n']['ta']['question_text']) > 80 ? '...' : '' ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                        <?php if (!empty($question['i18n']['hi']['question_text'])): ?>
+                                                            <div><strong>HI:</strong>
+                                                                <?= htmlspecialchars(substr($question['i18n']['hi']['question_text'], 0, 80)) ?>
+                                                                <?= strlen($question['i18n']['hi']['question_text']) > 80 ? '...' : '' ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <small>
+                                                    A: <?= htmlspecialchars(substr($previewOpt($question, 'A'), 0, 30)) ?><br>
+                                                    B: <?= htmlspecialchars(substr($previewOpt($question, 'B'), 0, 30)) ?><br>
+                                                    C: <?= htmlspecialchars(substr($previewOpt($question, 'C'), 0, 30)) ?><br>
+                                                    D: <?= htmlspecialchars(substr($previewOpt($question, 'D'), 0, 30)) ?>
+                                                </small>
+                                            </td>
+                                            <td><span class="badge bg-primary">
+                                                    <?= $question['correct_answer'] ?>
+                                                </span>
+                                            </td>
+                                            <td><span
+                                                    class="badge bg-<?= $question['difficulty'] === 'easy' ? 'success' : ($question['difficulty'] === 'medium' ? 'warning' : 'danger') ?>">
+                                                    <?= ucfirst($question['difficulty']) ?>
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
 
-                    // Show upload progress
-                    uploadArea.innerHTML =
-                        '<i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i><h5>Processing file...</h5><p class="text-muted">Please wait while we parse your file</p>';
+                        <script>
+                            document.getElementById('import-questions-btn').addEventListener('click',
+                                function () {
+                                    if (!confirm('Are you sure you want to import all these questions?'))
+                                        return;
 
-                    // Create form data and upload
-                    const formData = new FormData();
-                    formData.append('upload_file', file);
+                                    this.disabled = true;
+                                    this.innerHTML =
+                                        '<i class="fas fa-spinner fa-spin me-2"></i>Importing...';
 
-                    fetch('index.php?page=questions&action=process_upload', {
-                            method: 'POST',
-                            body: formData
-                        })
-                        .then(async (response) => {
-                            const text = await response.text();
-                            try {
-                                return JSON.parse(text);
-                            } catch (err) {
-                                throw new Error(text || 'Invalid server response');
-                            }
-                        })
-                        .then(data => {
-                            if (data.success) {
-                                alert(data.message + '. Found ' + data.question_count +
-                                    ' questions.');
-                                if (data.redirect) {
-                                    window.location.href = data.redirect;
+                                    fetch('index.php?page=questions&action=import_questions', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/x-www-form-urlencoded'
+                                        }
+                                    })
+                                        .then(async (response) => {
+                                            const text = await response.text();
+                                            try {
+                                                return JSON.parse(text);
+                                            } catch (err) {
+                                                throw new Error(text || 'Invalid server response');
+                                            }
+                                        })
+                                        .then(data => {
+                                            if (data.success) {
+                                                alert(data.message);
+                                                if (data.redirect) {
+                                                    window.location.href = data.redirect;
+                                                }
+                                            } else {
+                                                alert('Error: ' + data.error);
+                                            }
+                                        })
+                                        .catch(error => {
+                                            alert('Network error: ' + error.message);
+                                        })
+                                        .finally(() => {
+                                            this.disabled = false;
+                                            this.innerHTML =
+                                                '<i class="fas fa-check me-2"></i>Import All Questions';
+                                        });
+                                });
+                        </script>
+
+                    <?php else: ?>
+                        <!-- Upload Step -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Upload Methods</h6>
+                                <div class="list-group mb-4">
+                                    <div class="list-group-item d-flex justify-content-between align-items-start">
+                                        <div class="ms-2 me-auto">
+                                            <div class="d-flex w-100 justify-content-between">
+                                                <h6 class="mb-1">Excel/CSV Upload</h6>
+                                                <small>Recommended</small>
+                                            </div>
+                                            <p class="mb-1">Upload .xlsx or .csv files with question data
+                                            </p>
+                                            <small>Best for large datasets</small>
+                                        </div>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-start">
+                                        <div class="ms-2 me-auto">
+                                            <div class="d-flex w-100 justify-content-between">
+                                                <h6 class="mb-1">Text Import</h6>
+                                                <small>Manual</small>
+                                            </div>
+                                            <p class="mb-1">Copy-paste questions in structured format</p>
+                                            <small>For quick manual entry</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h6>Upload Area</h6>
+                                <div class="border border-dashed border-primary rounded p-5 text-center" id="upload-area">
+                                    <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                    <h5>Drag & Drop Files Here</h5>
+                                    <p class="text-muted">or click to browse</p>
+                                    <input type="file" id="file-input" accept=".xlsx,.csv" style="display: none;">
+                                    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                                        <i class="fas fa-file me-2"></i>Choose Files
+                                    </button>
+                                </div>
+
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        Supported formats: .xlsx, .csv<br>
+                                        Maximum file size: 10MB
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Template Download -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h6>Template & Instructions</h6>
+                                <div class="bg-light p-3 rounded">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <strong>Excel Template (.xlsx)</strong>
+                                                    <br><small class="text-muted">Professional format with
+                                                        company header & serial numbers</small>
+                                                </div>
+                                                <button class="btn btn-success btn-sm"
+                                                    onclick="window.location.href='index.php?page=questions&action=download_template&format=excel'">
+                                                    <i class="fas fa-file-excel me-2"></i>Excel
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <strong>CSV Template (.csv)</strong>
+                                                    <br><small class="text-muted">Simple format compatible
+                                                        with all spreadsheet apps</small>
+                                                </div>
+                                                <button class="btn btn-outline-success btn-sm"
+                                                    onclick="window.location.href='index.php?page=questions&action=download_template&format=csv'">
+                                                    <i class="fas fa-file-csv me-2"></i>CSV
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 p-2 bg-warning bg-opacity-10 rounded">
+                                        <small class="text-warning">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            <strong>New Format:</strong> Templates now include a company
+                                            name row and S.No column for better organization. Both old and
+                                            new formats are supported for upload.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Text Import -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h6>Text Import</h6>
+                                <p class="text-muted">Paste questions in the following format:</p>
+                                <div class="bg-light p-3 rounded mb-3">
+                                    <small>
+                                        <strong>Example format:</strong><br>
+                                        1. With reference to the writs issued by the Courts in India,
+                                        consider the following
+                                        statements:<br><br>
+                                        1. Mandamus will not lie against a private organization unless it is
+                                        entrusted with a
+                                        public duty.<br>
+                                        2. Mandamus will not lie against a Company even though it may be a
+                                        Government
+                                        Company.<br>
+                                        3. Any public minded person can be a petitioner to move the Court to
+                                        obtain the writ of
+                                        Quo Warranto.<br><br>
+                                        Which of the statements given above are correct?<br><br>
+                                        A) 1 and 2 only<br>
+                                        B) 2 and 3 only<br>
+                                        C) 1 and 3 only<br>
+                                        D) 1, 2 and 3<br>
+                                        Answer: C<br>
+                                        Explanation: Statement 1 is correct, Statement 2 is incorrect,
+                                        Statement 3 is
+                                        correct<br><br>
+
+                                        2. In the series: 2, 6, 12, 20, 30, ? What comes next?<br>
+                                        A) 42<br>
+                                        B) 40<br>
+                                        C) 36<br>
+                                        D) 48<br>
+                                        Answer: A<br>
+                                    </small>
+                                </div>
+
+                                <form id="text-import-form">
+                                    <div class="mb-3">
+                                        <label for="text-content" class="form-label">Paste Questions
+                                            Here</label>
+                                        <textarea class="form-control" id="text-content" name="text_content" rows="10"
+                                            placeholder="Paste your questions here in the format shown above..."></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-upload me-2"></i>Import Text
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <script>
+                            // File upload handling
+                            const uploadArea = document.getElementById('upload-area');
+
+                            // Drag and drop handlers
+                            uploadArea.addEventListener('dragover', function (e) {
+                                e.preventDefault();
+                                uploadArea.classList.add('border-success');
+                            });
+
+                            uploadArea.addEventListener('dragleave', function (e) {
+                                e.preventDefault();
+                                uploadArea.classList.remove('border-success');
+                            });
+
+                            uploadArea.addEventListener('drop', function (e) {
+                                e.preventDefault();
+                                uploadArea.classList.remove('border-success');
+
+                                const files = e.dataTransfer.files;
+                                if (files.length > 0) {
+                                    handleFileUpload(files[0]);
                                 }
-                            } else {
-                                alert('Error: ' + data.error);
-                                resetUploadArea();
-                            }
-                        })
-                        .catch(error => {
-                            alert('Network error: ' + error.message);
-                            resetUploadArea();
-                        });
-                }
+                            });
 
-                function resetUploadArea() {
-                    uploadArea.innerHTML =
-                        '<i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>' +
-                        '<h5>Drag & Drop Files Here</h5>' +
-                        '<p class="text-muted">or click to browse</p>' +
-                        '<input type="file" id="file-input" accept=".xlsx,.csv" style="display: none;">' +
-                        '<button class="btn btn-primary" onclick="document.getElementById(\'file-input\').click()">' +
-                        '<i class="fas fa-file me-2"></i>Choose Files</button>';
-                }
-
-                // Text import handling
-                document.getElementById('text-import-form').addEventListener('submit', function(e) {
-                    e.preventDefault();
-
-                    const textContent = document.getElementById('text-content').value
-                        .trim();
-                    if (!textContent) {
-                        alert('Please enter some text content');
-                        return;
-                    }
-
-                    const submitBtn = this.querySelector('button[type="submit"]');
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML =
-                        '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
-
-                    const formData = new FormData();
-                    formData.append('text_content', textContent);
-
-                    fetch('index.php?page=questions&action=process_text', {
-                            method: 'POST',
-                            body: formData
-                        })
-                        .then(async (response) => {
-                            const text = await response.text();
-                            try {
-                                return JSON.parse(text);
-                            } catch (err) {
-                                throw new Error(text || 'Invalid server response');
-                            }
-                        })
-                        .then(data => {
-                            if (data.success) {
-                                alert(data.message + '. Found ' + data.question_count +
-                                    ' questions.');
-                                if (data.redirect) {
-                                    window.location.href = data.redirect;
+                            // Delegate change event so it still works if input is re-rendered
+                            document.addEventListener('change', function (e) {
+                                if (e.target && e.target.id === 'file-input' && e.target.files.length > 0) {
+                                    handleFileUpload(e.target.files[0]);
                                 }
-                            } else {
-                                alert('Error: ' + data.error);
-                            }
-                        })
-                        .catch(error => {
-                            alert('Network error: ' + error.message);
-                        })
-                        .finally(() => {
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML =
-                                '<i class="fas fa-upload me-2"></i>Import Text';
-                        });
-                });
-                </script>
+                            });
 
-                <?php endif; ?>
+                            function handleFileUpload(file) {
+                                // Validate file
+                                const allowedTypes = [
+                                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                    'text/csv'
+                                ];
+                                if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|csv)$/i)) {
+                                    alert('Please upload only Excel (.xlsx) or CSV (.csv) files');
+                                    return;
+                                }
+
+                                if (file.size > 10 * 1024 * 1024) {
+                                    alert('File size must be less than 10MB');
+                                    return;
+                                }
+
+                                // Show upload progress
+                                uploadArea.innerHTML =
+                                    '<i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i><h5>Processing file...</h5><p class="text-muted">Please wait while we parse your file</p>';
+
+                                // Create form data and upload
+                                const formData = new FormData();
+                                formData.append('upload_file', file);
+
+                                fetch('index.php?page=questions&action=process_upload', {
+                                    method: 'POST',
+                                    body: formData
+                                })
+                                    .then(async (response) => {
+                                        const text = await response.text();
+                                        try {
+                                            return JSON.parse(text);
+                                        } catch (err) {
+                                            throw new Error(text || 'Invalid server response');
+                                        }
+                                    })
+                                    .then(data => {
+                                        if (data.success) {
+                                            alert(data.message + '. Found ' + data.question_count +
+                                                ' questions.');
+                                            if (data.redirect) {
+                                                window.location.href = data.redirect;
+                                            }
+                                        } else {
+                                            alert('Error: ' + data.error);
+                                            resetUploadArea();
+                                        }
+                                    })
+                                    .catch(error => {
+                                        alert('Network error: ' + error.message);
+                                        resetUploadArea();
+                                    });
+                            }
+
+                            function resetUploadArea() {
+                                uploadArea.innerHTML =
+                                    '<i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>' +
+                                    '<h5>Drag & Drop Files Here</h5>' +
+                                    '<p class="text-muted">or click to browse</p>' +
+                                    '<input type="file" id="file-input" accept=".xlsx,.csv" style="display: none;">' +
+                                    '<button class="btn btn-primary" onclick="document.getElementById(\'file-input\').click()">' +
+                                    '<i class="fas fa-file me-2"></i>Choose Files</button>';
+                            }
+
+                            // Text import handling
+                            document.getElementById('text-import-form').addEventListener('submit', function (e) {
+                                e.preventDefault();
+
+                                const textContent = document.getElementById('text-content').value
+                                    .trim();
+                                if (!textContent) {
+                                    alert('Please enter some text content');
+                                    return;
+                                }
+
+                                const submitBtn = this.querySelector('button[type="submit"]');
+                                submitBtn.disabled = true;
+                                submitBtn.innerHTML =
+                                    '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+
+                                const formData = new FormData();
+                                formData.append('text_content', textContent);
+
+                                fetch('index.php?page=questions&action=process_text', {
+                                    method: 'POST',
+                                    body: formData
+                                })
+                                    .then(async (response) => {
+                                        const text = await response.text();
+                                        try {
+                                            return JSON.parse(text);
+                                        } catch (err) {
+                                            throw new Error(text || 'Invalid server response');
+                                        }
+                                    })
+                                    .then(data => {
+                                        if (data.success) {
+                                            alert(data.message + '. Found ' + data.question_count +
+                                                ' questions.');
+                                            if (data.redirect) {
+                                                window.location.href = data.redirect;
+                                            }
+                                        } else {
+                                            alert('Error: ' + data.error);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        alert('Network error: ' + error.message);
+                                    })
+                                    .finally(() => {
+                                        submitBtn.disabled = false;
+                                        submitBtn.innerHTML =
+                                            '<i class="fas fa-upload me-2"></i>Import Text';
+                                    });
+                            });
+                        </script>
+
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
 <?php endif; ?>
 
 <script>
-document.querySelectorAll('.view-details-btn').forEach(function(button) {
-    button.addEventListener('click', function() {
-        let subject = this.getAttribute('data-subject');
-        let topic = this.getAttribute('data-topic');
-        let subtopic = this.getAttribute('data-subtopic');
-        let question_text = this.getAttribute('data-question_text');
-        let options = this.getAttribute('data-options');
-        let correct_answer = this.getAttribute('data-correct_answer');
-        let explanation = this.getAttribute('data-explanation');
-        let difficulty = this.getAttribute('data-difficulty');
-        let exam_year = this.getAttribute('data-exam_year');
-        let source = this.getAttribute('data-source');
-        let is_public = this.getAttribute('data-is_public');
+    document.querySelectorAll('.view-details-btn').forEach(function (button) {
+        button.addEventListener('click', function () {
+            let subject = this.getAttribute('data-subject');
+            let topic = this.getAttribute('data-topic');
+            let subtopic = this.getAttribute('data-subtopic');
+            let question_text = this.getAttribute('data-question_text');
+            let options = this.getAttribute('data-options');
+            let correct_answer = this.getAttribute('data-correct_answer');
+            let explanation = this.getAttribute('data-explanation');
+            let difficulty = this.getAttribute('data-difficulty');
+            let exam_year = this.getAttribute('data-exam_year');
+            let source = this.getAttribute('data-source');
+            let is_public = this.getAttribute('data-is_public');
 
-        let optionsHtml = '';
-        try {
-            let opts = JSON.parse(options);
-            optionsHtml += '<ul class="list-group mb-2">';
-            ['A', 'B', 'C', 'D'].forEach(function(key) {
-                if (opts[key]) {
-                    optionsHtml +=
-                        `<li class="list-group-item"><strong>${key}.</strong> ${opts[key]}</li>`;
+            const escapeHtml = s => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            let optionsHtml = '';
+            try {
+                // options may be a JSON string (possibly HTML-escaped by PHP). Decode HTML entities
+                // then try to parse. This recovers values emitted via htmlspecialchars.
+                function htmlDecode(input) {
+                    const txt = document.createElement('textarea');
+                    txt.innerHTML = input || '';
+                    return txt.value;
                 }
-            });
-            optionsHtml += '</ul>';
-        } catch (e) {}
 
-        let html = '';
-        html +=
-            `<div><span class='badge bg-primary'>${subject}</span> <span class='badge bg-secondary'>${topic}</span> <span class='badge bg-${difficulty === 'easy' ? 'success' : (difficulty === 'medium' ? 'warning' : 'danger')}'>${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span></div>`;
-        html += `<h5 class='mt-3'>${question_text}</h5>`;
-        html += optionsHtml;
-        html +=
-            `<div class='mb-2'><strong>Correct Answer:</strong> ${correct_answer}</div>`;
-        html +=
-            `<div class='mb-2'><strong>Explanation:</strong> ${explanation || '-'}</div>`;
-        html +=
-            `<div class='mb-2'><strong>Exam Year:</strong> ${exam_year} <strong>Source:</strong> ${source}</div>`;
-        html +=
-            `<div class='mb-2'><strong>Subtopic:</strong> ${subtopic || '-'}</div>`;
-        html += `<div class='mb-2'><strong>Public:</strong> ${is_public}</div>`;
+                let opts = {};
+                if (!options) opts = {};
+                else if (typeof options === 'object') opts = options;
+                else if (typeof options === 'string') {
+                    const decoded = htmlDecode(options);
+                    try { opts = JSON.parse(decoded); }
+                    catch (e) {
+                        // try unescaped quotes as a last resort
+                        try { opts = JSON.parse(decoded.replace(/\\\"/g, '"')); } catch (e2) { opts = {}; }
+                    }
+                }
+                const keys = ['A', 'B', 'C', 'D', 'E'];
+                optionsHtml += '<ul class="list-group mb-2">';
+                // helper to find option content across several shapes (A, option_a, option_a_en, i18n)
+                function findOption(opts, key) {
+                    if (!opts) return null;
+                    // direct key (A/B/C...)
+                    if (opts[key] !== undefined && opts[key] !== null) return opts[key];
+                    // uppercase key
+                    if (opts[key.toUpperCase()] !== undefined && opts[key.toUpperCase()] !== null) return opts[key.toUpperCase()];
+                    // option_a, option_b etc
+                    const lower = 'option_' + key.toLowerCase();
+                    if (opts[lower] !== undefined && opts[lower] !== null) return opts[lower];
+                    // language-specific top-level like option_a_en
+                    const langs = ['en', 'ta', 'hi'];
+                    for (const l of langs) {
+                        const name = lower + '_' + l;
+                        if (opts[name] !== undefined && opts[name] !== null) return opts[name];
+                    }
+                    // nested i18n: opts.i18n.en.A
+                    if (opts.i18n && typeof opts.i18n === 'object') {
+                        for (const l of langs) {
+                            if (opts.i18n[l] && (opts.i18n[l][key] !== undefined)) return opts.i18n[l][key];
+                            // some imports may store options under i18n->lang->options
+                            if (opts.i18n[l] && opts.i18n[l].options && opts.i18n[l].options[key] !== undefined) return opts.i18n[l].options[key];
+                        }
+                    }
+                    return null;
+                }
 
-        // Use modal if exists, else fallback to alert
-        if (document.getElementById('questionPreviewModal')) {
-            document.getElementById('preview-question-content').innerHTML = html;
-            let modal = new bootstrap.Modal(document.getElementById(
-                'questionPreviewModal'));
-            modal.show();
-        } else {
-            alert(subject + '\n' + topic + '\n' + question_text);
-        }
+                keys.forEach(function (key) {
+                    const raw = findOption(opts, key);
+                    const namedImage = opts && (opts[`${key}_image`] || opts[`${key}_img`] || opts['option_' + key.toLowerCase() + '_image'] || opts['option_' + key.toLowerCase() + '_img']);
+                    if (raw || namedImage) {
+                        let text = '';
+                        let imagePath = '';
+                        if (raw && typeof raw === 'object') {
+                            if (raw.text) text = raw.text;
+                            else if (raw.i18n && raw.i18n.en) text = raw.i18n.en;
+                            else {
+                                for (const p in raw) if (typeof raw[p] === 'string') { text = raw[p]; break; }
+                            }
+                            if (raw.image) imagePath = raw.image;
+                        } else if (Array.isArray(raw)) {
+                            text = raw.join(' ');
+                        } else {
+                            text = raw != null ? String(raw) : '';
+                        }
+                        if (!imagePath) imagePath = namedImage || '';
+                        let content = '';
+                        if (imagePath) content += `<div><img src="${escapeHtml(imagePath)}" style="max-width:200px; max-height:120px;" alt="${key}"></div>`;
+                        content += escapeHtml(text);
+                        optionsHtml += `<li class="list-group-item"><strong>${key}.</strong> ${content}</li>`;
+                    }
+                });
+                optionsHtml += '</ul>';
+            } catch (e) { }
+
+            let html = '';
+            html +=
+                `<div><span class='badge bg-primary'>${subject}</span> <span class='badge bg-secondary'>${topic}</span> <span class='badge bg-${difficulty === 'easy' ? 'success' : (difficulty === 'medium' ? 'warning' : 'danger')}'>${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span></div>`;
+            html += `<h5 class='mt-3'>${question_text}</h5>`;
+            html += optionsHtml;
+            html +=
+                `<div class='mb-2'><strong>Correct Answer:</strong> ${correct_answer}</div>`;
+            html +=
+                `<div class='mb-2'><strong>Explanation:</strong> ${explanation || '-'}</div>`;
+            html +=
+                `<div class='mb-2'><strong>Exam Year:</strong> ${exam_year} <strong>Source:</strong> ${source}</div>`;
+            html +=
+                `<div class='mb-2'><strong>Subtopic:</strong> ${subtopic || '-'}</div>`;
+            html += `<div class='mb-2'><strong>Public:</strong> ${is_public}</div>`;
+
+            // Use modal if exists, else fallback to alert
+            if (document.getElementById('questionPreviewModal')) {
+                document.getElementById('preview-question-content').innerHTML = html;
+                let modal = new bootstrap.Modal(document.getElementById(
+                    'questionPreviewModal'));
+                modal.show();
+            } else {
+                alert(subject + '\n' + topic + '\n' + question_text);
+            }
+        });
     });
-});
 </script>
 
 <script>
-document.querySelectorAll('.add-to-test-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const questionId = this.dataset.questionId;
-        const questionLabel = this.dataset.questionLabel;
+    document.querySelectorAll('.add-to-test-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const questionId = this.dataset.questionId;
+            const questionLabel = this.dataset.questionLabel;
 
-        document.getElementById('modalQuestionId').value = questionId;
-        document.getElementById('modalQuestionText').textContent = questionLabel;
-    });
-});
-</script>
+            document.getElementById('modalQuestionId').value = questionId;
+            document.getElementById('modalQuestionText').textContent = questionLabel;
+        });
+    });</script>

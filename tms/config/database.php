@@ -5,11 +5,13 @@ define('DB_NAME', 'ea_tms_db');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 
-class Database {
+class Database
+{
     private static $instance = null;
     private $connection;
-    
-    private function __construct() {
+
+    private function __construct()
+    {
         try {
             $this->connection = new PDO(
                 "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME,
@@ -21,19 +23,21 @@ class Database {
                     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"
                 ]
             );
-        } catch(PDOException $e) {
+        } catch (PDOException $e) {
             die("Database connection failed: " . $e->getMessage());
         }
     }
-    
-    public static function getInstance() {
+
+    public static function getInstance()
+    {
         if (self::$instance === null) {
             self::$instance = new self();
         }
         return self::$instance;
     }
-    
-    public function getConnection() {
+
+    public function getConnection()
+    {
         return $this->connection;
     }
 }
@@ -53,7 +57,7 @@ $tables = [
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )",
-    
+
     "CREATE TABLE IF NOT EXISTS institutions (
         id INT PRIMARY KEY AUTO_INCREMENT,
         name VARCHAR(200) NOT NULL,
@@ -62,7 +66,7 @@ $tables = [
         subscription_plan ENUM('basic', 'premium', 'enterprise') DEFAULT 'basic',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
-    
+
     "CREATE TABLE IF NOT EXISTS question_banks (
         id INT PRIMARY KEY AUTO_INCREMENT,
         title VARCHAR(200) NOT NULL,
@@ -76,12 +80,13 @@ $tables = [
         difficulty ENUM('easy', 'medium', 'hard') DEFAULT 'medium',
         exam_year YEAR,
         source VARCHAR(100),
+        image VARCHAR(255),
         is_public BOOLEAN DEFAULT TRUE,
         institute_id INT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (institute_id) REFERENCES institutions(id)
     )",
-    
+
     "CREATE TABLE IF NOT EXISTS test_packs (
         id INT PRIMARY KEY AUTO_INCREMENT,
         title VARCHAR(200) NOT NULL,
@@ -97,7 +102,7 @@ $tables = [
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (institute_id) REFERENCES institutions(id)
     )",
-    
+
     "CREATE TABLE IF NOT EXISTS test_sessions (
         id INT PRIMARY KEY AUTO_INCREMENT,
         test_pack_id INT NOT NULL,
@@ -113,7 +118,7 @@ $tables = [
         FOREIGN KEY (test_pack_id) REFERENCES test_packs(id),
         FOREIGN KEY (student_id) REFERENCES users(id)
     )",
-    
+
     "CREATE TABLE IF NOT EXISTS analytics_data (
         id INT PRIMARY KEY AUTO_INCREMENT,
         question_id INT,
@@ -129,7 +134,7 @@ $tables = [
 foreach ($tables as $sql) {
     try {
         $db->exec($sql);
-    } catch(PDOException $e) {
+    } catch (PDOException $e) {
         error_log("Table creation error: " . $e->getMessage());
     }
 }

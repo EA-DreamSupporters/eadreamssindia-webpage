@@ -61,7 +61,7 @@ $analytics_data = [
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="stats-card success">
             <div class="d-flex justify-content-between align-items-center">
@@ -73,7 +73,7 @@ $analytics_data = [
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="stats-card warning">
             <div class="d-flex justify-content-between align-items-center">
@@ -85,7 +85,7 @@ $analytics_data = [
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="stats-card danger">
             <div class="d-flex justify-content-between align-items-center">
@@ -132,7 +132,7 @@ $analytics_data = [
                             </div>
                             <small class="text-muted">Appeared in: 2019, 2021, 2023 TNPSC</small>
                         </div>
-                        
+
                         <div class="bg-light p-3 rounded mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span>Indian Constitution</span>
@@ -146,7 +146,7 @@ $analytics_data = [
                             </div>
                             <small class="text-muted">Appeared in: 2020, 2022 UPSC</small>
                         </div>
-                        
+
                         <div class="bg-light p-3 rounded">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span>Organic Chemistry</span>
@@ -161,7 +161,7 @@ $analytics_data = [
                             <small class="text-muted">Appeared in: 2023 State PSC</small>
                         </div>
                     </div>
-                    
+
                     <div class="col-md-6">
                         <h6 class="text-muted mb-3">🎯 AI Predictions for 2024</h6>
                         <div class="prediction-item mb-3">
@@ -176,7 +176,7 @@ $analytics_data = [
                             </div>
                             <p class="small text-muted mb-0">Based on 3-year pattern analysis and curriculum changes</p>
                         </div>
-                        
+
                         <div class="prediction-item mb-3">
                             <div class="d-flex align-items-center mb-2">
                                 <div class="prediction-icon me-3">
@@ -189,7 +189,7 @@ $analytics_data = [
                             </div>
                             <p class="small text-muted mb-0">Emerging trend in recent exam patterns</p>
                         </div>
-                        
+
                         <div class="prediction-item">
                             <div class="d-flex align-items-center mb-2">
                                 <div class="prediction-icon me-3">
@@ -225,7 +225,7 @@ $analytics_data = [
             </div>
         </div>
     </div>
-    
+
     <div class="col-lg-6">
         <div class="card">
             <div class="card-header">
@@ -289,7 +289,7 @@ $analytics_data = [
                                     <small class="text-success">+12%</small>
                                 </td>
                             </tr>
-                            
+
                             <tr>
                                 <td>
                                     <strong>Science</strong>
@@ -315,7 +315,7 @@ $analytics_data = [
                                     <small class="text-muted">±0%</small>
                                 </td>
                             </tr>
-                            
+
                             <tr>
                                 <td>
                                     <strong>History</strong>
@@ -347,7 +347,7 @@ $analytics_data = [
             </div>
         </div>
     </div>
-    
+
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
@@ -363,7 +363,7 @@ $analytics_data = [
                     </div>
                     <p class="small mb-0">Mathematics scores improved by 15% after adding more practice questions.</p>
                 </div>
-                
+
                 <div class="insight-item mb-3 p-3 bg-warning bg-opacity-10 rounded">
                     <div class="d-flex align-items-center mb-2">
                         <i class="fas fa-exclamation-triangle text-warning me-2"></i>
@@ -371,7 +371,7 @@ $analytics_data = [
                     </div>
                     <p class="small mb-0">Science topics show declining engagement. Consider adding visual content.</p>
                 </div>
-                
+
                 <div class="insight-item mb-3 p-3 bg-info bg-opacity-10 rounded">
                     <div class="d-flex align-items-center mb-2">
                         <i class="fas fa-brain text-info me-2"></i>
@@ -379,7 +379,7 @@ $analytics_data = [
                     </div>
                     <p class="small mb-0">Focus on Environment & Ecology questions for upcoming exams.</p>
                 </div>
-                
+
                 <div class="insight-item p-3 bg-primary bg-opacity-10 rounded">
                     <div class="d-flex align-items-center mb-2">
                         <i class="fas fa-trophy text-primary me-2"></i>

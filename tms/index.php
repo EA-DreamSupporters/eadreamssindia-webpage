@@ -16,6 +16,19 @@ if (!in_array($page, $allowed_pages)) {
 $ajax_actions = ['bulk_duplicate', 'bulk_delete', 'process_upload', 'process_text', 'import_questions'];
 $is_ajax_request = ($page === 'questions' && in_array($action, $ajax_actions) && $_SERVER['REQUEST_METHOD'] === 'POST');
 
+// If this is an AJAX request for the questions page, delegate to the AJAX
+// controller immediately. The controller will emit JSON and exit. This avoids
+// loading the full page HTML and prevents the frontend receiving non-JSON
+// responses (which previously caused "Network error" on uploads).
+if ($is_ajax_request && $page === 'questions') {
+    $ajaxHandler = __DIR__ . '/pages/questions/controllers/ajax.php';
+    if (file_exists($ajaxHandler)) {
+        require_once $ajaxHandler;
+    }
+    // ajax controller should exit after handling; ensure we stop here
+    exit();
+}
+
 // Check authentication for protected pages
 if ($page !== 'login' && !isLoggedIn()) {
     if ($is_ajax_request) {
@@ -30,11 +43,22 @@ if ($page !== 'login' && !isLoggedIn()) {
     }
 }
 
-if ($page !== 'login') {
+// Include header only for regular (non-AJAX) pages to avoid sending HTML before AJAX handlers
+if ($page !== 'login' && !$is_ajax_request) {
+    // Ensure Questions server-side form handlers (which may use header redirects)
+    // are included before any HTML is emitted. This prevents "headers already sent"
+    // errors when those handlers call header().
+    if ($page === 'questions') {
+        $formsHandler = __DIR__ . '/pages/questions/controllers/forms.php';
+        if (file_exists($formsHandler)) {
+            require_once $formsHandler;
+        }
+    }
+
     include 'includes/header.php';
 }
 
-switch($page) {
+switch ($page) {
     case 'login':
         include 'pages/login.php';
         break;
@@ -66,7 +90,8 @@ switch($page) {
         include 'pages/dashboard.php';
 }
 
-if ($page !== 'login') {
+// Include footer only for regular (non-AJAX) pages
+if ($page !== 'login' && !$is_ajax_request) {
     include 'includes/footer.php';
 }
 ?>

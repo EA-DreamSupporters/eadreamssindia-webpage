@@ -1,191 +1,144 @@
 <?php
-// Simple Bulk Upload Functions for Question Bank
-// This is a clean implementation without complex CSV/Excel handling
+// bulk_upload_simple.php
+// CSV parser + DB importer for question_banks
 
-function createSimpleCSVTemplate() {
-    $csv = '"[ENTER YOUR COMPANY/INSTITUTION NAME HERE]"' . "\n";
-    $csv .= '""' . "\n"; // Empty spacing row
-    
-    // Headers
-    $csv .= '"S.No","Subject","Topic","Subtopic","Question Text","Option A","Option B","Option C","Option D","Correct Answer","Explanation","Difficulty","Exam Year","Source/Exam","Is Public"' . "\n";
-    
-    // Sample data
-    $csv .= '"1","Polity","Constitutional Law","Writs","Sample Question 1","Option A","Option B","Option C","Option D","A","Sample explanation","medium","2024","UPSC","Yes"' . "\n";
-    $csv .= '"2","Reasoning","Logical Reasoning","Series","Sample Question 2","Option A","Option B","Option C","Option D","B","Sample explanation","easy","2024","SSC","Yes"' . "\n";
-    
-    // Empty rows
-    for ($i = 3; $i <= 12; $i++) {
-        $csv .= '"' . $i . '","","","","","","","","","","","","","",""' . "\n";
-    }
-    
-    return $csv;
-}
+// if (!function_exists('parseSimpleCSV')) {
+//     function parseSimpleCSV(string $filePath): array
+//     {
+//         $questions = [];
+//         if (!is_readable($filePath))
+//             return $questions;
 
-function createSimpleExcelTemplate() {
-    // Simple Excel template in SpreadsheetML format
-    $xml = '<?xml version="1.0"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office"
-    xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
-    xmlns:html="http://www.w3.org/TR/REC-html40">
-    <Worksheet ss:Name="Questions">
-        <Table>
-            <Row>
-                <Cell><Data ss:Type="String">[ENTER YOUR COMPANY/INSTITUTION NAME HERE]</Data></Cell>
-            </Row>
-            <Row>
-                <Cell><Data ss:Type="String"></Data></Cell>
-            </Row>
-            <Row>
-                <Cell><Data ss:Type="String">S.No</Data></Cell>
-                <Cell><Data ss:Type="String">Subject</Data></Cell>
-                <Cell><Data ss:Type="String">Topic</Data></Cell>
-                <Cell><Data ss:Type="String">Subtopic</Data></Cell>
-                <Cell><Data ss:Type="String">Question Text</Data></Cell>
-                <Cell><Data ss:Type="String">Option A</Data></Cell>
-                <Cell><Data ss:Type="String">Option B</Data></Cell>
-                <Cell><Data ss:Type="String">Option C</Data></Cell>
-                <Cell><Data ss:Type="String">Option D</Data></Cell>
-                <Cell><Data ss:Type="String">Correct Answer</Data></Cell>
-                <Cell><Data ss:Type="String">Explanation</Data></Cell>
-                <Cell><Data ss:Type="String">Difficulty</Data></Cell>
-                <Cell><Data ss:Type="String">Exam Year</Data></Cell>
-                <Cell><Data ss:Type="String">Source/Exam</Data></Cell>
-                <Cell><Data ss:Type="String">Is Public</Data></Cell>
-            </Row>
-            <Row>
-                <Cell><Data ss:Type="Number">1</Data></Cell>
-                <Cell><Data ss:Type="String">Polity</Data></Cell>
-                <Cell><Data ss:Type="String">Constitutional Law</Data></Cell>
-                <Cell><Data ss:Type="String">Writs</Data></Cell>
-                <Cell><Data ss:Type="String">Sample Question 1</Data></Cell>
-                <Cell><Data ss:Type="String">Option A</Data></Cell>
-                <Cell><Data ss:Type="String">Option B</Data></Cell>
-                <Cell><Data ss:Type="String">Option C</Data></Cell>
-                <Cell><Data ss:Type="String">Option D</Data></Cell>
-                <Cell><Data ss:Type="String">A</Data></Cell>
-                <Cell><Data ss:Type="String">Sample explanation</Data></Cell>
-                <Cell><Data ss:Type="String">medium</Data></Cell>
-                <Cell><Data ss:Type="Number">2024</Data></Cell>
-                <Cell><Data ss:Type="String">UPSC</Data></Cell>
-                <Cell><Data ss:Type="String">Yes</Data></Cell>
-            </Row>';
+//         $handle = fopen($filePath, 'r');
+//         if ($handle === false)
+//             return $questions;
 
-            // Empty rows
-            for ($i = 2; $i <= 12; $i++) { $xml .="\n<Row>" ; $xml .='<Cell><Data ss:Type="Number">' . $i
-                . '</Data></Cell>' ; for ($j=1; $j <=14; $j++) { $xml .='<Cell><Data ss:Type="String"></Data></Cell>' ;
-                } $xml .="</Row>" ; } $xml .='
-</Table>
-</Worksheet>
-</Workbook>' ; return $xml; } function parseSimpleCSV($filePath) { $questions=[]; $handle=fopen($filePath, 'r' ); if
-                ($handle !==FALSE) { fgetcsv($handle); fgetcsv($handle); fgetcsv($handle); $rowNumber=3; while
-                (($data=fgetcsv($handle)) !==FALSE) { $rowNumber++; // Skip empty rows if (empty(trim($data[4] ?? '' )))
-                continue; $question=[ 'subject'=>
-                trim($data[1] ?? 'General'),
-                'topic' => trim($data[2] ?? 'General'),
-                'subtopic' => trim($data[3] ?? ''),
-                'question_text' => trim($data[4] ?? ''),
-                'option_a' => trim($data[5] ?? ''),
-                'option_b' => trim($data[6] ?? ''),
-                'option_c' => trim($data[7] ?? ''),
-                'option_d' => trim($data[8] ?? ''),
-                'correct_answer' => strtoupper(trim($data[9] ?? 'A')),
-                'explanation' => trim($data[10] ?? ''),
-                'difficulty' => strtolower(trim($data[11] ?? 'medium')),
-                'exam_year' => intval($data[12] ?? date('Y')),
-                'source' => trim($data[13] ?? 'CSV Import'),
-                'is_public' => (strtolower(trim($data[14] ?? 'yes')) === 'yes') ? 1 : 0,
-                'row_number' => $rowNumber,
-                'serial_number' => trim($data[0] ?? '')
-                ];
+//         // Skip first 4 rows (metadata), header at row 5
+//         for ($i = 0; $i < 4; $i++) {
+//             fgetcsv($handle);
+//         }
+//         $headers = fgetcsv($handle);
 
-                // Validate required fields
-                if (!empty($question['question_text']) && !empty($question['subject'])) {
-                // Validate correct answer
-                if (!in_array($question['correct_answer'], ['A', 'B', 'C', 'D'])) {
-                $question['correct_answer'] = 'A';
-                }
+//         $isAdvanced = ($headers && count($headers) >= 20 && stripos(implode(',', $headers), 'Image') !== false);
+//         $row = 5;
 
-                // Validate difficulty
-                if (!in_array($question['difficulty'], ['easy', 'medium', 'hard'])) {
-                $question['difficulty'] = 'medium';
-                }
+//         while (($data = fgetcsv($handle)) !== false) {
+//             $row++;
+//             if (!is_array($data) || count(array_filter($data)) === 0)
+//                 continue;
 
-                $questions[] = $question;
-                }
-                }
-                fclose($handle);
-                }
+//             if ($isAdvanced) {
+//                 $options = [
+//                     'A' => trim($data[5] ?? ''),
+//                     'B' => trim($data[7] ?? ''),
+//                     'C' => trim($data[9] ?? ''),
+//                     'D' => trim($data[11] ?? ''),
+//                     'E' => trim($data[13] ?? ''),
+//                 ];
+//                 $item = [
+//                     'subject' => trim($data[0] ?? 'General'),
+//                     'topic' => trim($data[1] ?? ''),
+//                     'subtopic' => trim($data[2] ?? ''),
+//                     'question_text' => trim($data[3] ?? ''),
+//                     'image' => trim($data[4] ?? null),
+//                     'options' => json_encode($options),
+//                     'correct_answer' => strtoupper(trim($data[15] ?? 'A')),
+//                     'explanation' => trim($data[19] ?? ''),
+//                     'difficulty' => strtolower(trim($data[16] ?? 'medium')),
+//                     'exam_year' => intval($data[17] ?? date('Y')),
+//                     'source' => trim($data[18] ?? 'CSV Import'),
+//                     'is_public' => 1,
+//                     'row_number' => $row,
+//                 ];
+//                 $validAnswers = ['A', 'B', 'C', 'D', 'E'];
+//             } else {
+//                 $options = [
+//                     'A' => trim($data[4] ?? ''),
+//                     'B' => trim($data[5] ?? ''),
+//                     'C' => trim($data[6] ?? ''),
+//                     'D' => trim($data[7] ?? ''),
+//                 ];
+//                 $item = [
+//                     'subject' => trim($data[0] ?? 'General'),
+//                     'topic' => trim($data[1] ?? ''),
+//                     'subtopic' => trim($data[2] ?? ''),
+//                     'question_text' => trim($data[3] ?? ''),
+//                     'options' => json_encode($options),
+//                     'correct_answer' => strtoupper(trim($data[8] ?? 'A')),
+//                     'explanation' => trim($data[9] ?? ''),
+//                     'difficulty' => strtolower(trim($data[10] ?? 'medium')),
+//                     'exam_year' => intval($data[11] ?? date('Y')),
+//                     'source' => trim($data[12] ?? 'CSV Import'),
+//                     'image' => null,
+//                     'is_public' => (strtolower(trim($data[13] ?? 'yes')) === 'yes') ? 1 : 0,
+//                     'row_number' => $row,
+//                 ];
+//                 $validAnswers = ['A', 'B', 'C', 'D'];
+//             }
 
-                return $questions;
-                }
+//             // Validation
+//             if (!empty($item['question_text']) && !empty($item['subject'])) {
+//                 if (!in_array($item['correct_answer'], $validAnswers)) {
+//                     $item['correct_answer'] = 'A';
+//                 }
+//                 if (!in_array($item['difficulty'], ['easy', 'medium', 'hard'])) {
+//                     $item['difficulty'] = 'medium';
+//                 }
+//                 $questions[] = $item;
+//             }
+//         }
 
-                function importQuestionsToDatabase($questions, $db) {
-                $successCount = 0;
-                $errorCount = 0;
-                $errors = [];
+//         fclose($handle);
+//         return $questions;
+//     }
+// }
 
-                foreach ($questions as $question) {
-                try {
-                // Validate required fields
-                if (empty($question['question_text'])) {
-                throw new Exception("Question text is required");
-                }
+// if (!function_exists('importQuestionsToDatabase')) {
+//     function importQuestionsToDatabase(array $questions, PDO $db): array
+//     {
+//         $success = 0;
+//         $skipped = 0;
+//         $errors = [];
 
-                if (empty($question['subject'])) {
-                throw new Exception("Subject is required");
-                }
+//         $sql = "INSERT INTO question_banks
+//             (title, subject, topic, subtopic, question_text, options, correct_answer, explanation, difficulty, exam_year,
+//              source, image, is_public, institute_id, created_at)
+//             VALUES
+//             (:title, :subject, :topic, :subtopic, :question_text, :options, :correct_answer, :explanation, :difficulty,
+//              :exam_year, :source, :image, :is_public, :institute_id, NOW())";
 
-                if (!in_array($question['correct_answer'], ['A', 'B', 'C', 'D'])) {
-                throw new Exception("Correct answer must be A, B, C, or D");
-                }
+//         $stmt = $db->prepare($sql);
 
-                // Prepare options JSON
-                $options = json_encode([
-                'A' => $question['option_a'],
-                'B' => $question['option_b'],
-                'C' => $question['option_c'],
-                'D' => $question['option_d']
-                ]);
+//         foreach ($questions as $q) {
+//             try {
+//                 $stmt->execute([
+//                     ':title' => mb_substr($q['question_text'], 0, 50),
+//                     ':subject' => $q['subject'],
+//                     ':topic' => $q['topic'],
+//                     ':subtopic' => $q['subtopic'],
+//                     ':question_text' => $q['question_text'],
+//                     ':options' => $q['options'],
+//                     ':correct_answer' => $q['correct_answer'],
+//                     ':explanation' => $q['explanation'] ?? null,
+//                     ':difficulty' => $q['difficulty'] ?? 'medium',
+//                     ':exam_year' => $q['exam_year'] ?? date('Y'),
+//                     ':source' => $q['source'] ?? 'CSV Import',
+//                     ':image' => $q['image'] ?? null,
+//                     ':is_public' => $q['is_public'] ?? 1,
+//                     ':institute_id' => $_SESSION['institute_id'] ?? 0,
+//                 ]);
+//                 $success++;
+//             } catch (Exception $e) {
+//                 error_log('Import question failed: ' . $e->getMessage());
+//                 $errors[] = $e->getMessage();
+//                 $skipped++;
+//             }
+//         }
 
-                // Insert question
-                $stmt = $db->prepare("INSERT INTO question_banks (title, subject, topic, subtopic, question_text,
-                options, correct_answer, explanation, difficulty, exam_year, source, is_public, institute_id,
-                created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
-                $result = $stmt->execute([
-                '', // title (empty)
-                $question['subject'],
-                $question['topic'],
-                $question['subtopic'],
-                $question['question_text'],
-                $options,
-                $question['correct_answer'],
-                $question['explanation'],
-                $question['difficulty'],
-                $question['exam_year'],
-                $question['source'],
-                $question['is_public'],
-                null, // institute_id set to null
-                date('Y-m-d H:i:s')
-                ]);
-
-                if ($result) {
-                $successCount++;
-                } else {
-                $errorCount++;
-                $errors[] = "Row {$question['row_number']}: Failed to insert question";
-                }
-
-                } catch (Exception $e) {
-                $errorCount++;
-                $errors[] = "Row {$question['row_number']}: " . $e->getMessage();
-                }
-                }
-
-                return [
-                'success_count' => $successCount,
-                'error_count' => $errorCount,
-                'errors' => $errors
-                ];
-                }
-                ?>
+//         return [
+//             'success_count' => $success,
+//             'error_count' => $skipped,
+//             'errors' => $errors
+//         ];
+//     }
+// }
