@@ -107,6 +107,10 @@ body {
   background: linear-gradient(135deg, var(--warning-color), #FFB84D);
 }
 
+.stats-card.info {
+  background: linear-gradient(135deg, #17a2b8, #3dbfd4);
+}
+
 .stats-card.danger {
   background: linear-gradient(135deg, var(--danger-color), #E74C3C);
 }

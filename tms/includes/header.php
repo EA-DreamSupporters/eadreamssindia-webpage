@@ -25,46 +25,78 @@
                 </button>
 
                 <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav me-auto">
-                        <li class="nav-item">
-                            <a class="nav-link <?= ($_GET['page'] ?? 'dashboard') === 'dashboard' ? 'active' : '' ?>"
-                                href="index.php?page=dashboard">
-                                <i class="fas fa-tachometer-alt me-1"></i>Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= ($_GET['page'] ?? '') === 'tests' ? 'active' : '' ?>"
-                                href="index.php?page=tests">
-                                <i class="fas fa-clipboard-list me-1"></i>Tests
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= ($_GET['page'] ?? '') === 'questions' ? 'active' : '' ?>"
-                                href="index.php?page=questions">
-                                <i class="fas fa-question-circle me-1"></i>Questions
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= ($_GET['page'] ?? '') === 'analytics' ? 'active' : '' ?>"
-                                href="index.php?page=analytics">
-                                <i class="fas fa-chart-line me-1"></i>Analytics
-                            </a>
-                        </li>
-                        <?php if (hasRole('super_admin')): ?>
+                    <?php $currentUser = getCurrentUser(); ?>
+                    <?php if ($currentUser['role'] === 'student'): ?>
+                        <!-- Student Navigation -->
+                        <ul class="navbar-nav me-auto">
                             <li class="nav-item">
-                                <a class="nav-link <?= ($_GET['page'] ?? '') === 'vendors' ? 'active' : '' ?>"
-                                    href="index.php?page=vendors">
-                                    <i class="fas fa-building me-1"></i>Vendors
+                                <a class="nav-link <?= ($_GET['page'] ?? 'dashboard') === 'dashboard' ? 'active' : '' ?>"
+                                    href="index.php?page=dashboard">
+                                    <i class="fas fa-home me-1"></i>Home
                                 </a>
                             </li>
-                        <?php endif; ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?= ($_GET['page'] ?? '') === 'students' ? 'active' : '' ?>"
-                                href="index.php?page=students">
-                                <i class="fas fa-users me-1"></i>Students
-                            </a>
-                        </li>
-                    </ul>
+                            <li class="nav-item">
+                                <a class="nav-link <?= ($_GET['page'] ?? '') === 'my_tests' ? 'active' : '' ?>"
+                                    href="index.php?page=my_tests">
+                                    <i class="fas fa-book-open me-1"></i>My Tests
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link <?= ($_GET['page'] ?? '') === 'test_results' ? 'active' : '' ?>"
+                                    href="index.php?page=test_results">
+                                    <i class="fas fa-chart-bar me-1"></i>My Results
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link <?= ($_GET['page'] ?? '') === 'practice' ? 'active' : '' ?>"
+                                    href="index.php?page=practice">
+                                    <i class="fas fa-pencil-alt me-1"></i>Practice
+                                </a>
+                            </li>
+                        </ul>
+                    <?php else: ?>
+                        <!-- Admin/Vendor Navigation -->
+                        <ul class="navbar-nav me-auto">
+                            <li class="nav-item">
+                                <a class="nav-link <?= ($_GET['page'] ?? 'dashboard') === 'dashboard' ? 'active' : '' ?>"
+                                    href="index.php?page=dashboard">
+                                    <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link <?= ($_GET['page'] ?? '') === 'tests' ? 'active' : '' ?>"
+                                    href="index.php?page=tests">
+                                    <i class="fas fa-clipboard-list me-1"></i>Tests
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link <?= ($_GET['page'] ?? '') === 'questions' ? 'active' : '' ?>"
+                                    href="index.php?page=questions">
+                                    <i class="fas fa-question-circle me-1"></i>Questions
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link <?= ($_GET['page'] ?? '') === 'analytics' ? 'active' : '' ?>"
+                                    href="index.php?page=analytics">
+                                    <i class="fas fa-chart-line me-1"></i>Analytics
+                                </a>
+                            </li>
+                            <?php if (hasRole('super_admin')): ?>
+                                <li class="nav-item">
+                                    <a class="nav-link <?= ($_GET['page'] ?? '') === 'vendors' ? 'active' : '' ?>"
+                                        href="index.php?page=vendors">
+                                        <i class="fas fa-building me-1"></i>Vendors
+                                    </a>
+                                </li>
+                            <?php endif; ?>
+                            <li class="nav-item">
+                                <a class="nav-link <?= ($_GET['page'] ?? '') === 'students' ? 'active' : '' ?>"
+                                    href="index.php?page=students">
+                                    <i class="fas fa-users me-1"></i>Students
+                                </a>
+                            </li>
+                        </ul>
+                    <?php endif; ?>
 
                     <ul class="navbar-nav">
                         <li class="nav-item dropdown">

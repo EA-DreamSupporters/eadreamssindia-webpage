@@ -1,32 +1,52 @@
 <?php
 $user = getCurrentUser();
 
-// Generate sample analytics data
+// Initialize default analytics data
 $analytics_data = [
-    'total_attempts' => rand(1000, 5000),
-    'average_score' => rand(65, 85),
-    'completion_rate' => rand(75, 95),
-    'popular_subjects' => [
-        'Mathematics' => rand(200, 500),
-        'Science' => rand(150, 400),
-        'English' => rand(100, 300),
-        'History' => rand(80, 250),
-        'Geography' => rand(60, 200)
-    ],
-    'difficulty_distribution' => [
-        'easy' => rand(30, 40),
-        'medium' => rand(40, 50),
-        'hard' => rand(20, 30)
-    ],
-    'monthly_trends' => [
-        'Jan' => rand(50, 100),
-        'Feb' => rand(60, 110),
-        'Mar' => rand(70, 120),
-        'Apr' => rand(80, 130),
-        'May' => rand(90, 140),
-        'Jun' => rand(100, 150)
-    ]
+    'total_attempts' => 0,
+    'average_score' => 0,
+    'completion_rate' => 0,
+    'popular_subjects' => [],
+    'difficulty_distribution' => ['easy' => 0, 'medium' => 0, 'hard' => 0],
+    'monthly_trends' => []
 ];
+
+try {
+    // 1. Total Attempts & Average Score
+    if ($user['role'] === 'student') {
+        $stmt = $db->prepare("
+            SELECT 
+                COUNT(*) as total, 
+                AVG(score) as avg_score,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+            FROM test_sessions 
+            WHERE student_id = ?
+        ");
+        $stmt->execute([$user['id']]);
+    } else {
+        // Admin/Vendor view
+        $stmt = $db->query("
+            SELECT 
+                COUNT(*) as total, 
+                AVG(score) as avg_score,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+            FROM test_sessions
+        ");
+    }
+    
+    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+    $analytics_data['total_attempts'] = $stats['total'] ?? 0;
+    $analytics_data['average_score'] = round($stats['avg_score'] ?? 0, 1);
+    $analytics_data['completion_rate'] = $stats['total'] > 0 ? round(($stats['completed'] / $stats['total']) * 100, 1) : 0;
+
+    // 2. Popular Subjects (based on test packs taken)
+    // This requires joining test_sessions -> test_packs
+    // Skipping complex join for now to keep it simple and fast, or implement if needed.
+    // Let's just use empty array or simple query if critical.
+    
+} catch (Exception $e) {
+    error_log("Analytics error: " . $e->getMessage());
+}
 ?>
 
 <div class="row">

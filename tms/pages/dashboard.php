@@ -6,6 +6,12 @@ if (!$user) {
     exit;
 }
 
+// If student, show student dashboard
+if ($user['role'] === 'student') {
+    include 'dashboard_student.php';
+    return;
+}
+
 // Initialize stats array first
 $stats = [
     'total_tests' => 0,
@@ -59,20 +65,79 @@ try {
         }
     }
 
-    // Mock Revenue
-    $stats['monthly_revenue'] = rand(5000, 25000);
+    // Total Revenue
+    if ($user['role'] === 'super_admin') {
+        $stats['monthly_revenue'] = $db->query("SELECT SUM(amount_paid) FROM student_enrollments WHERE payment_status = 'completed'")->fetchColumn() ?: 0;
+    } else {
+        if (isset($user['institute_id']) && $user['institute_id']) {
+            // Join with test_packs to filter by institute
+            $stmt = $db->prepare("
+                SELECT SUM(se.amount_paid) 
+                FROM student_enrollments se
+                JOIN test_packs tp ON se.test_pack_id = tp.id
+                WHERE se.payment_status = 'completed' AND tp.institute_id = ?
+            ");
+            $stmt->execute([$user['institute_id']]);
+            $stats['monthly_revenue'] = $stmt->fetchColumn() ?: 0;
+        } else {
+            $stats['monthly_revenue'] = 0;
+        }
+    }
 } catch (Exception $e) {
     error_log("Dashboard stats error: " . $e->getMessage());
 }
 
-
 // Recent activities
-$recent_activities = [
-    ['icon' => 'fas fa-plus-circle', 'text' => 'New test pack created: "TNPSC Prelims 2024"', 'time' => '2 hours ago', 'type' => 'success'],
-    ['icon' => 'fas fa-users', 'text' => '5 new students registered', 'time' => '4 hours ago', 'type' => 'info'],
-    ['icon' => 'fas fa-chart-line', 'text' => 'Analytics report generated', 'time' => '6 hours ago', 'type' => 'warning'],
-    ['icon' => 'fas fa-question-circle', 'text' => '50 new questions added to bank', 'time' => '1 day ago', 'type' => 'primary']
-];
+$recent_activities = [];
+try {
+    // Fetch latest created test packs
+    if ($user['role'] === 'super_admin') {
+        $stmt = $db->query("SELECT title, created_at FROM test_packs ORDER BY created_at DESC LIMIT 5");
+    } else {
+        $stmt = $db->prepare("SELECT title, created_at FROM test_packs WHERE institute_id = ? ORDER BY created_at DESC LIMIT 5");
+        $stmt->execute([$user['institute_id'] ?? 0]);
+    }
+    
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $recent_activities[] = [
+            'icon' => 'fas fa-plus-circle',
+            'text' => 'New test pack created: "' . htmlspecialchars($row['title']) . '"',
+            'time' => time_elapsed_string($row['created_at']),
+            'type' => 'success'
+        ];
+    }
+} catch (Exception $e) {
+    // Silent fail for activities
+}
+
+function time_elapsed_string($datetime, $full = false) {
+    $now = new DateTime;
+    $ago = new DateTime($datetime);
+    $diff = $now->diff($ago);
+
+    $diff->w = floor($diff->d / 7);
+    $diff->d -= $diff->w * 7;
+
+    $string = array(
+        'y' => 'year',
+        'm' => 'month',
+        'w' => 'week',
+        'd' => 'day',
+        'h' => 'hour',
+        'i' => 'minute',
+        's' => 'second',
+    );
+    foreach ($string as $k => &$v) {
+        if ($diff->$k) {
+            $v = $diff->$k . ' ' . $v . ($diff->$k > 1 ? 's' : '');
+        } else {
+            unset($string[$k]);
+        }
+    }
+
+    if (!$full) $string = array_slice($string, 0, 1);
+    return $string ? implode(', ', $string) . ' ago' : 'just now';
+}
 ?>
 
 <div class="row">

@@ -1,5 +1,14 @@
 <?php
 $user = getCurrentUser();
+// Initialize session for flash messages (used for PRG pattern)
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+
+// Pull any flash messages from previous redirect
+$success = $_SESSION['flash_success'] ?? null;
+unset($_SESSION['flash_success']);
+
+$error = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_error']);
 $action = $_GET['action'] ?? 'list';
 $perPage = 10;
 $pageNum = intval($_GET['page_num'] ?? 1);
@@ -93,9 +102,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([
                 $title, $description, $price, $mrp, $test_type, $timer_type, $duration, $instituteId, $is_active, $is_visible_to_students, $created_at, $cover_image_path
             ]);
-
-            $success = "Test pack created successfully!";
-            $action = 'list';
+            // Use Post/Redirect/Get to avoid duplicate creation on reload
+            $_SESSION['flash_success'] = "Test pack created successfully!";
+            // If headers not sent, use PHP redirect. Otherwise use JS fallback.
+            if (!headers_sent()) {
+                header('Location: index.php?page=tests');
+                exit;
+            } else {
+                echo "<script>window.location.href='index.php?page=tests';</script>";
+                exit;
+            }
         }
 
         // ✅ Edit Test
@@ -122,8 +138,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $title, $description, $price, $mrp, $test_type, $timer_type, $duration, $is_active, $is_visible_to_students, $cover_image_path, $test_id
                     ]);
 
-                    $success = "Test pack updated successfully!";
-                    $action = 'list';
+                    // Use PRG to avoid duplicate updates on reload
+                    $_SESSION['flash_success'] = "Test pack updated successfully!";
+                    if (!headers_sent()) {
+                        header('Location: index.php?page=tests');
+                        exit;
+                    } else {
+                        echo "<script>window.location.href='index.php?page=tests';</script>";
+                        exit;
+                    }
                 } else {
                     $error = "Test pack not found or unauthorized.";
                     $action = 'list';
@@ -178,8 +201,15 @@ if ($action === 'delete' && isset($_GET['id'])) {
             $stmt->execute([$test_id, $user['institute_id']]);
         }
 
-        $success = "Test pack deleted successfully!";
-        $action = 'list';
+        // Redirect after delete to avoid accidental repeated deletes on refresh
+        $_SESSION['flash_success'] = "Test pack deleted successfully!";
+        if (!headers_sent()) {
+            header('Location: index.php?page=tests');
+            exit;
+        } else {
+            echo "<script>window.location.href='index.php?page=tests';</script>";
+            exit;
+        }
     } else {
         $error = "Test pack not found or unauthorized.";
         $action = 'list';
@@ -891,31 +921,80 @@ document.querySelectorAll('.view-details-btn').forEach(button => {
                 let html = '<h5 class="mt-4">Questions in this Test</h5>';
 
                 questions.forEach((q, i) => {
-                    // Try to parse options if it's a string
-                    if (q.options && typeof q.options === 'string') {
-                        try {
-                            q.options = JSON.parse(q.options);
-                        } catch (e) {
-                            q.options = {};
+                    // Get question text - handle both direct string and object
+                    let questionText = '';
+                    if (typeof q.question_text === 'string') {
+                        questionText = q.question_text;
+                    } else if (q.question_text && typeof q.question_text === 'object') {
+                        questionText = q.question_text.english || q.question_text.hindi ||
+                            JSON.stringify(q.question_text);
+                    } else {
+                        questionText = 'Question text not available';
+                    }
+
+                    // Parse options - try both English and Hindi
+                    let options = {};
+
+                    // Try options_english first
+                    if (q.options_english) {
+                        if (typeof q.options_english === 'string') {
+                            try {
+                                options = JSON.parse(q.options_english);
+                            } catch (e) {
+                                console.error('Failed to parse options_english:', e);
+                            }
+                        } else if (typeof q.options_english === 'object') {
+                            options = q.options_english;
+                        }
+                    }
+
+                    // Fallback to options field
+                    if (Object.keys(options).length === 0 && q.options) {
+                        if (typeof q.options === 'string') {
+                            try {
+                                options = JSON.parse(q.options);
+                            } catch (e) {
+                                console.error('Failed to parse options:', e);
+                            }
+                        } else if (typeof q.options === 'object') {
+                            options = q.options;
                         }
                     }
 
                     // Render options
                     let optionsHtml = '';
-                    if (q.options && typeof q.options === 'object') {
-                        Object.entries(q.options).forEach(([key, value]) => {
-                            optionsHtml +=
-                                `<li><strong>${key}:</strong> ${value}</li>`;
+                    if (options && typeof options === 'object' && Object.keys(options)
+                        .length > 0) {
+                        Object.entries(options).forEach(([key, value]) => {
+                            // Handle nested objects (e.g., {english: "text", hindi: "पाठ"})
+                            let displayValue = value;
+                            if (typeof value === 'object' && value !== null) {
+                                // Try to get English text first, then Hindi, then stringify
+                                displayValue = value.english || value.hindi || value
+                                    .text || JSON.stringify(value);
+                            }
+
+                            // Skip i18n and other metadata keys
+                            if (key !== 'i18n' && key !== '__metadata') {
+                                optionsHtml +=
+                                    `<li><strong>${key}:</strong> ${displayValue}</li>`;
+                            }
                         });
                         optionsHtml = `<ul class="list-unstyled">${optionsHtml}</ul>`;
+                    } else {
+                        optionsHtml = '<p class="text-muted">No options available</p>';
                     }
+
+                    // Get correct answer
+                    let correctAnswer = q.correct_answer_english || q.correct_answer ||
+                        'N/A';
 
                     html += `
                         <div class="card mb-3 shadow-sm">
                             <div class="card-body">
-                                <h6><strong>Q${i + 1}:</strong> ${q.question_text}</h6>
+                                <h6><strong>Q${i + 1}:</strong> ${questionText}</h6>
                                 ${optionsHtml}
-                                <p><strong>Answer:</strong> ${q.correct_answer}</p>
+                                <p><strong>Answer:</strong> ${correctAnswer}</p>
                                 ${q.explanation ? `<p><strong>Explanation:</strong> ${q.explanation}</p>` : ''}
                             </div>
                         </div>
