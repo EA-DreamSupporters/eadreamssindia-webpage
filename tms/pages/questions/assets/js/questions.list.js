@@ -106,7 +106,10 @@
             const btn = e.target.closest('.view-details-btn');
             if (!btn) return;
             e.preventDefault();
-            const data = {
+            
+            // Store question data globally and use the language-aware preview system
+            window._currentPreviewQuestion = {
+                id: btn.getAttribute('data-id'),
                 subject: btn.getAttribute('data-subject'),
                 topic: btn.getAttribute('data-topic'),
                 subtopic: btn.getAttribute('data-subtopic'),
@@ -119,97 +122,18 @@
                 source: btn.getAttribute('data-source'),
                 is_public: btn.getAttribute('data-is_public')
             };
-
-            // Render preview content
-            const contentEl = document.getElementById('preview-question-content');
-            if (!contentEl) return;
-            let html = '';
-            html += `<div><span class='badge bg-primary'>${data.subject}</span> <span class='badge bg-secondary'>${data.topic}</span> <span class='badge bg-${data.difficulty === 'easy' ? 'success' : (data.difficulty === 'medium' ? 'warning' : 'danger')}'>${data.difficulty.charAt(0).toUpperCase() + data.difficulty.slice(1)}</span></div>`;
-            html += `<h5 class='mt-3'>${data.question_text}</h5>`;
-            try {
-                const opts = JSON.parse(data.options || '{}');
-                if (opts.image) {
-                    html += `<div class="mb-2"><img src="${opts.image}" style="max-width:100%; height:auto;"></div>`;
+            
+            // Render using the global function (language buttons will be created by renderPreviewContent)
+            if (typeof renderPreviewContent === 'function') {
+                renderPreviewContent('en');
+                
+                const modalEl = document.getElementById('questionPreviewModal');
+                if (modalEl) {
+                    const modal = new bootstrap.Modal(modalEl);
+                    modal.show();
                 }
-                if (opts.audio) {
-                    html += `<div class="mb-2"><audio controls src="${opts.audio}"></audio></div>`;
-                }
-            } catch (e) { }
-            html += renderOptions(data.options);
-            html += `<div class='mb-2'><strong>Correct Answer:</strong> ${data.correct_answer}</div>`;
-            html += `<div class='mb-2'><strong>Explanation:</strong> ${data.explanation || '-'}</div>`;
-            html += `<div class='mb-2'><strong>Exam Year:</strong> ${data.exam_year} <strong>Source:</strong> ${data.source}</div>`;
-            html += `<div class='mb-2'><strong>Subtopic:</strong> ${data.subtopic || '-'}</div>`;
-            html += `<div class='mb-2'><strong>Public:</strong> ${data.is_public}</div>`;
-            contentEl.innerHTML = html;
-            const modalEl = document.getElementById('questionPreviewModal');
-            if (modalEl) {
-                const modal = new bootstrap.Modal(modalEl);
-                modal.show();
-            } else {
-                alert(data.question_text);
             }
         });
-
-        // Options render helper used by preview
-        function renderOptions(optionsJson) {
-            const escapeHtml = s => String(s == null ? '' : s)
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-            let html = '';
-            try {
-                const options = (typeof optionsJson === 'object') ? optionsJson : JSON.parse(optionsJson || '{}');
-                const keys = ['A', 'B', 'C', 'D', 'E'];
-                const firstRaw = options[keys[0]];
-                const first = (typeof firstRaw === 'string') ? firstRaw : (Array.isArray(firstRaw) ? firstRaw.join(' ') : '');
-                const looksLikeSequence = typeof first === 'string' && /^\s*\d+(\s+\d+)+\s*$/.test(first);
-                if (looksLikeSequence) {
-                    const cols = (first.trim().split(/\s+/)).length;
-                    html += '<table class="table table-sm table-bordered mb-2"><thead><tr><th></th>';
-                    for (let i = 0; i < cols; i++) html += `<th>(${['a', 'b', 'c', 'd', 'e'][i] || i + 1})</th>`;
-                    html += '</tr></thead><tbody>';
-                    for (const k of keys) {
-                        if (options[k]) {
-                            const val = options[k];
-                            const parts = (typeof val === 'string' ? val : (Array.isArray(val) ? val.join(' ') : String(val))).trim().split(/\s+/);
-                            html += `<tr><th style="width:60px">${k}</th>`;
-                            for (let i = 0; i < cols; i++) html += `<td>${escapeHtml(parts[i] || '')}</td>`;
-                            html += '</tr>';
-                        }
-                    }
-                    html += '</tbody></table>';
-                    return html;
-                }
-                html += '<ul class="list-group mb-2">';
-                for (const key of keys) {
-                    const raw = options[key];
-                    const namedImage = options[`${key}_image`] || options[`${key} _image`] || options[`${key}_img`];
-                    if (raw || namedImage) {
-                        let text = '';
-                        let imagePath = '';
-                        if (raw && typeof raw === 'object') {
-                            if (raw.text) text = raw.text;
-                            else if (raw.i18n && raw.i18n.en) text = raw.i18n.en;
-                            else {
-                                for (const p in raw) if (typeof raw[p] === 'string') { text = raw[p]; break; }
-                            }
-                            if (raw.image) imagePath = raw.image;
-                        } else if (Array.isArray(raw)) {
-                            text = raw.join(' ');
-                        } else {
-                            text = raw != null ? String(raw) : '';
-                        }
-                        if (!imagePath) imagePath = namedImage || '';
-                        let content = '';
-                        if (imagePath) content += `<div><img src="${escapeHtml(imagePath)}" style="max-width:200px; max-height:120px;" alt="${key}"></div>`;
-                        content += escapeHtml(text);
-                        html += `<li class="list-group-item"><strong>${key}.</strong> ${content}</li>`;
-                    }
-                }
-                html += '</ul>';
-            } catch (e) { }
-            return html;
-        }
 
     });
 })();
